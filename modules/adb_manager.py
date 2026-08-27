@@ -243,6 +243,19 @@ def _get_wifi_ip(device_id: str) -> str:
     return _extract_device_ip(route_out or "")
 
 
+def connect_wifi(ip: str, port: int = 5555) -> bool:
+    """Connect to a device via WiFi using its IP address."""
+    console.print(f"[cyan]Connecting to {ip}:{port}...[/]")
+    out, rc = run_adb(["connect", f"{ip}:{port}"], capture=True)
+    if rc == 0 and "connected" in out.lower():
+        console.print(f"[green]✓ Connected to {ip}:{port}[/]")
+        return True
+    else:
+        console.print(f"[red]✗ Failed to connect to {ip}:{port}[/]")
+        console.print(f"[dim]{out}[/]")
+        return False
+
+
 def auto_adb_wifi_connect(device_id: str, port: int = 5555):
     """Automatically switch USB ADB to WiFi mode and connect to the device."""
     if not device_id:
@@ -295,6 +308,22 @@ def auto_adb_wifi_connect(device_id: str, port: int = 5555):
         title="[bold green]Auto ADB WiFi Connect[/]",
         border_style="green",
     ))
+
+    # Save WiFi connection info to a file for quick reconnect
+    try:
+        wifi_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "wifi_devices.json")
+        import json
+        wifi_data = {}
+        if os.path.exists(wifi_file):
+            with open(wifi_file, "r") as f:
+                wifi_data = json.load(f)
+        wifi_data[f"{ip}:{port}"] = {"ip": ip, "port": port, "last_connected": time.strftime("%Y-%m-%d %H:%M:%S")}
+        with open(wifi_file, "w") as f:
+            json.dump(wifi_data, f, indent=2)
+        console.print(f"[green]✓ WiFi device saved for quick reconnect[/]")
+    except Exception as e:
+        console.print(f"[yellow]Could not save WiFi device info: {e}[/]")
+
     return True
 
 

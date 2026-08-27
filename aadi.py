@@ -70,12 +70,21 @@ def get_banner_status():
         device_count = len(devices)
         status_color = "green" if device_count > 0 else "red"
         device_text = f"[{status_color}]{device_count} Connected[/]"
+
+        # Check for wireless connections
+        wireless_count = 0
+        for device in devices:
+            if ":" in device.get("serial", ""):
+                wireless_count += 1
+
+        if wireless_count > 0:
+            device_text += f" [magenta]({wireless_count} WiFi)[/]"
     except:
         device_text = "[yellow]ADB Not Found[/]"
 
     from datetime import datetime
     now = datetime.now().strftime("%H:%M:%S")
-    
+
     return (
         f"📅 [bold white]{now}[/]  |  "
         f"📱 [bold cyan]Devices:[/] {device_text}  |  "
@@ -143,7 +152,7 @@ MENU_OPTIONS = [
     ("5",  "💥", "Exploit Engine",          "Launch activities, deep links, shell dropper"),
     ("6",  "🎯", "Payload Generator",       "APK payloads, reverse shells, obfuscation"),
     ("7",  "📋", "Report Generator",        "Generate HTML/JSON security report"),
-    ("8",  "📡", "ADB WiFi Connect",        "Enable & connect ADB over WiFi"),
+    ("8",  "📡", "Wireless Setup Wizard",   "Setup wireless ADB connection (cable-free)"),
     ("9",  "⚡", "Auto ADB WiFi Connect",   "Automatically switch USB ADB to WiFi mode"),
     ("10", "📸", "Screenshot Capture",      "Capture device screenshot via ADB"),
     ("11", "📦", "Package Manager",         "Enumerate installed packages"),
@@ -152,7 +161,8 @@ MENU_OPTIONS = [
     ("14", "📂", "File Transfer",           "Pull/push files from/to device"),
     ("15", "💻", "Interactive ADB Shell",   "Drop into live ADB shell"),
     ("16", "🧰", "Remote Control",          "Remote screen, file explorer, camera and device control tools"),
-    ("17", "❔", "About",                   "About AADI"),
+    ("17", "🔄", "Quick WiFi Connect",      "Connect to previously saved WiFi devices"),
+    ("18", "❔", "About",                   "About AADI"),
     ("0",  "🚪", "Exit",                    "Exit AADI"),
 ]
 
@@ -412,6 +422,44 @@ def handle_adb_wifi():
         return
     port = IntPrompt.ask("[cyan]Port[/]", default=5555)
     ip, p = adb_manager.enable_adb_wifi(device_id, port)
+    if ip:
+        console.print(f"[bold green]✓ WiFi ADB enabled on:[/] {ip}:{p}")
+        console.print(f"[cyan]To connect wirelessly later:[/] adb connect {ip}:{p}")
+
+
+def wireless_connection_wizard():
+    """Guide user through setting up wireless ADB connection."""
+    console.rule("[bold magenta]📡 Wireless Connection Wizard[/]")
+
+    wizard = Panel(
+        "[bold cyan]📡 Wireless ADB Setup Guide[/]\n\n"
+        "[bold white]Step 1: Initial USB Connection[/]\n"
+        "[dim]• Connect your Android device via USB cable (one-time setup)[/]\n"
+        "[dim]• Enable USB Debugging in Developer Options[/]\n"
+        "[dim]• Ensure both devices are on the same WiFi network[/]\n\n"
+        "[bold white]Step 2: Enable WiFi ADB[/]\n"
+        "[dim]• Run: adb tcpip 5555[/]\n"
+        "[dim]• This switches ADB from USB to WiFi mode[/]\n\n"
+        "[bold white]Step 3: Connect Wirelessly[/]\n"
+        "[dim]• Get device IP: adb shell ip addr show wlan0[/]\n"
+        "[dim]• Connect: adb connect <device_ip>:5555[/]\n\n"
+        "[bold white]Step 4: Remove Cable[/]\n"
+        "[dim]• Once connected via WiFi, you can remove the USB cable[/]\n"
+        "[dim]• Device will stay connected as long as on same network[/]\n\n"
+        "[bold yellow]💡 Tips:[/]\n"
+        "[dim]• Reboot required to revert to USB mode[/]\n"
+        "[dim]• Some ROMs may require re-enabling after reboot[/]\n"
+        "[dim]• Use 'Auto ADB WiFi Connect' for automated setup[/]",
+        title="[bold]Wireless Setup Wizard[/]",
+        border_style="cyan",
+        padding=(0, 2)
+    )
+    console.print(wizard)
+
+    if Confirm.ask("[cyan]Would you like to run automatic WiFi setup now?[/]", default=True):
+        console.print("[cyan]Please connect your device via USB first (one-time requirement)...[/]")
+        time.sleep(2)
+        handle_auto_adb_wifi()
 
 
 def handle_auto_adb_wifi():
@@ -638,6 +686,53 @@ def _get_session() -> dict:
     return _SESSION.copy()
 
 
+def quick_wifi_connect():
+    """Quick connect to previously saved WiFi devices."""
+    wifi_file = os.path.join(os.path.dirname(__file__), "wifi_devices.json")
+
+    if not os.path.exists(wifi_file):
+        console.print("[yellow]No saved WiFi devices found.[/]")
+        console.print("[dim]Use 'Auto ADB WiFi Connect' to save devices for quick reconnect.[/]")
+        return
+
+    try:
+        import json
+        with open(wifi_file, "r") as f:
+            wifi_data = json.load(f)
+    except Exception as e:
+        console.print(f"[red]Error reading WiFi devices file: {e}[/]")
+        return
+
+    if not wifi_data:
+        console.print("[yellow]No saved WiFi devices.[/]")
+        return
+
+    console.print("[bold cyan]Saved WiFi Devices:[/]")
+    device_list = list(wifi_data.keys())
+    for i, device_id in enumerate(device_list, 1):
+        config = wifi_data[device_id]
+        console.print(f"  [cyan]{i}.[/] {device_id} [dim](Last: {config.get('last_connected', 'Unknown')})[/]")
+
+    if Confirm.ask("[cyan]Connect to a saved device?[/]", default=False):
+        choice = IntPrompt.ask("[cyan]Enter device number[/]", default=1)
+        if 1 <= choice <= len(device_list):
+            device_id = device_list[choice - 1]
+            config = wifi_data[device_id]
+            console.print(f"[cyan]Connecting to:[/] {config['ip']}:{config['port']}")
+            result = adb_manager.connect_wifi(config['ip'], config['port'])
+            if result:
+                console.print("[green]✓ Connected successfully![/]")
+            else:
+                console.print("[red]✗ Connection failed. Device may be offline or network changed.[/]")
+        else:
+            console.print("[red]Invalid selection.[/]")
+    else:
+        if Confirm.ask("[cyan]Would you like to clear saved devices?[/]", default=False):
+            os.remove(wifi_file)
+            console.print("[green]✓ Saved WiFi devices cleared.[/]")
+
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  INTERACTIVE MODE
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -650,7 +745,7 @@ HANDLER_MAP = {
     "5":  handle_exploit_engine,
     "6":  handle_payload_generator,
     "7":  handle_report_generator,
-    "8":  handle_adb_wifi,
+    "8":  wireless_connection_wizard,
     "9":  handle_auto_adb_wifi,
     "10": handle_screenshot,
     "11": handle_package_manager,
@@ -659,7 +754,8 @@ HANDLER_MAP = {
     "14": handle_file_transfer,
     "15": handle_adb_shell,
     "16": handle_remote_control,
-    "17": handle_about,
+    "17": quick_wifi_connect,
+    "18": handle_about,
 }
 
 
