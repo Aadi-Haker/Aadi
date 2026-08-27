@@ -499,6 +499,7 @@ def open_remote_screen(device_id: str) -> bool:
         "-s", device_id,
         "--window-title", "Remote Screen",
         "--max-size", "900",
+        "--no-audio",
     ]
     try:
         subprocess.Popen(cmd)
