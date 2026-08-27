@@ -30,18 +30,6 @@ def run_adb(args: list, device_id: str = None, capture: bool = True):
         return "TIMEOUT", -2
 
 
-def run_adb_global(args: list, capture: bool = True):
-    """Run an adb command without device specification."""
-    cmd = ["adb"] + args
-    try:
-        result = subprocess.run(cmd, capture_output=capture, text=True, timeout=30)
-        return result.stdout.strip(), result.returncode
-    except FileNotFoundError:
-        return None, -1
-    except subprocess.TimeoutExpired:
-        return "TIMEOUT", -2
-
-
 def _extract_device_ip(text: str) -> str:
     """Extract IP address from ADB output."""
     match = re.search(r"\binet\s+(\d+\.\d+\.\d+\.\d+)", text or "")
