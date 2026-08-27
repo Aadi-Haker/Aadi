@@ -162,6 +162,7 @@ REMOTE_CONTROL_OPTIONS = [
     ("3", "📷", "Remote Camera",      "Open remote camera tools"),
     ("4", "📸", "Take Screenshot",    "Capture device screenshot"),
     ("5", "🎥", "Screen Record",      "Record device screen"),
+    ("6", "🎵", "Audio Setup Guide",  "Setup instructions for audio streaming"),
     ("0", "↩️", "Back",               "Return to main menu"),
 ]
 
@@ -509,12 +510,15 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
         # Default behavior - audio forwarded to laptop
         console.print("[cyan]Audio mode: Laptop only (audio forwarded)[/]")
     elif audio_mode == "both":
-        # Enable audio forwarding (scrcpy forwards audio to laptop)
-        # The device should also play audio locally in most cases
-        console.print("[cyan]Audio mode: Both (audio forwarded to laptop, device may also play)[/]")
-        console.print("[yellow]Note: Audio behavior depends on your Android device and system configuration.[/]")
-        console.print("[yellow]If device doesn't play audio, try 'device' mode and use audio streaming apps.[/]")
-        # Don't add --no-audio to enable audio forwarding
+        # For both mode, we disable audio forwarding so device plays audio
+        # and provide guidance for getting audio on laptop too
+        cmd.append("--no-audio")
+        console.print("[cyan]Audio mode: Both - Device audio + Laptop audio streaming[/]")
+        console.print("[yellow]Device will play audio locally. For laptop audio, use one of these methods:[/]")
+        console.print("[dim]1. Install SoundWire (Android) + SoundWire Server (PC)[/]")
+        console.print("[dim]2. Use AudioRelay app for audio streaming[/]")
+        console.print("[dim]3. Connect device audio to laptop via audio cable[/]")
+        console.print("[yellow]Audio streaming apps allow you to hear audio on both devices simultaneously.[/]")
     else:
         console.print("[yellow]Audio mode: Laptop only (default)[/]")
 
@@ -527,6 +531,30 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
     except OSError as exc:
         console.print(f"[bold red]Failed to launch Remote Screen:[/] {exc}")
     return False
+
+
+def show_audio_setup_guide():
+    """Display detailed audio streaming setup instructions."""
+    guide = Panel(
+        "[bold cyan]🎵 Audio Streaming Setup Guide[/]\n\n"
+        "[bold white]Option 1: SoundWire[/]\n"
+        "[dim]1. Install SoundWire on Android from Play Store[/]\n"
+        "[dim]2. Install SoundWire Server on your PC from soundwire.org[/]\n"
+        "[dim]3. Connect both devices to same WiFi network[/]\n"
+        "[dim]4. Run SoundWire Server on PC, enter IP in Android app[/]\n\n"
+        "[bold white]Option 2: AudioRelay[/]\n"
+        "[dim]1. Install AudioRelay on Android[/]\n"
+        "[dim]2. Install AudioRelay Server on PC[/]\n"
+        "[dim]3. Connect via WiFi and configure audio routing[/]\n\n"
+        "[bold white]Option 3: Audio Cable[/]\n"
+        "[dim]1. Connect 3.5mm audio cable from device to laptop line-in[/]\n"
+        "[dim]2. Configure laptop to record from line-in input[/]\n\n"
+        "[bold yellow]Tip: Use 'device' audio mode in Aadi + audio streaming app for best results![/]",
+        title="[bold]Audio Setup Guide[/]",
+        border_style="cyan",
+        padding=(0, 2)
+    )
+    console.print(guide)
 
 
 def handle_remote_control():
@@ -551,6 +579,10 @@ def handle_remote_control():
                 default="laptop"
             )
             open_remote_screen(device_id, audio_mode)
+            continue
+
+        if choice == "6":
+            show_audio_setup_guide()
             continue
 
         console.print("[yellow]This feature is not ready yet.[/]")
