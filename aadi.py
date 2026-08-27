@@ -157,7 +157,7 @@ MENU_OPTIONS = [
 ]
 
 REMOTE_CONTROL_OPTIONS = [
-    ("1", "🖥️", "Open Remote Screen", "Open Android screen with scrcpy"),
+    ("1", "🖥️", "Open Remote Screen", "Open Android screen with scrcpy (audio options)"),
     ("2", "📁", "File Explorer",      "Browse device files"),
     ("3", "📷", "Remote Camera",      "Open remote camera tools"),
     ("4", "📸", "Take Screenshot",    "Capture device screenshot"),
@@ -492,15 +492,32 @@ def check_scrcpy() -> bool:
     return False
 
 
-def open_remote_screen(device_id: str) -> bool:
-    """Launch scrcpy for the selected Android device."""
+def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
+    """Launch scrcpy for the selected Android device with audio options."""
     cmd = [
         "scrcpy",
         "-s", device_id,
         "--window-title", "Remote Screen",
         "--max-size", "900",
-        "--no-audio",
     ]
+
+    # Audio mode configuration
+    if audio_mode == "device":
+        cmd.append("--no-audio")
+        console.print("[cyan]Audio mode: Device only (no audio forwarding)[/]")
+    elif audio_mode == "laptop":
+        # Default behavior - audio forwarded to laptop
+        console.print("[cyan]Audio mode: Laptop only (audio forwarded)[/]")
+    elif audio_mode == "both":
+        # Enable audio forwarding (scrcpy forwards audio to laptop)
+        # The device should also play audio locally in most cases
+        console.print("[cyan]Audio mode: Both (audio forwarded to laptop, device may also play)[/]")
+        console.print("[yellow]Note: Audio behavior depends on your Android device and system configuration.[/]")
+        console.print("[yellow]If device doesn't play audio, try 'device' mode and use audio streaming apps.[/]")
+        # Don't add --no-audio to enable audio forwarding
+    else:
+        console.print("[yellow]Audio mode: Laptop only (default)[/]")
+
     try:
         subprocess.Popen(cmd)
         console.print("[bold green]Remote Screen launched.[/]")
@@ -528,7 +545,12 @@ def handle_remote_control():
             device_id = select_device()
             if not device_id:
                 continue
-            open_remote_screen(device_id)
+            audio_mode = Prompt.ask(
+                "[cyan]Select audio mode[/]",
+                choices=["laptop", "device", "both"],
+                default="laptop"
+            )
+            open_remote_screen(device_id, audio_mode)
             continue
 
         console.print("[yellow]This feature is not ready yet.[/]")
