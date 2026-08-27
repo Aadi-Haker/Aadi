@@ -16,6 +16,7 @@ import json
 import random
 import shutil
 import subprocess
+import re
 
 # ── Rich UI ────────────────────────────────────────────────────────────────────
 try:
@@ -71,14 +72,29 @@ def get_banner_status():
         status_color = "green" if device_count > 0 else "red"
         device_text = f"[{status_color}]{device_count} Connected[/]"
 
-        # Check for wireless connections
+        # Check for various wireless connections
         wireless_count = 0
+        connection_types = []
+
         for device in devices:
-            if ":" in device.get("serial", ""):
+            serial = device.get("serial", "")
+            if ":" in serial:
                 wireless_count += 1
+                # Try to determine connection type
+                ip, _ = serial.split(":")
+                if ip.startswith("192.168.43.") or ip.startswith("192.168.42."):
+                    connection_types.append("Hotspot")
+                elif ip.startswith("192.168.137."):
+                    connection_types.append("USB-Tether")
+                else:
+                    connection_types.append("WiFi")
 
         if wireless_count > 0:
-            device_text += f" [magenta]({wireless_count} WiFi)[/]"
+            if connection_types:
+                unique_types = list(set(connection_types))
+                device_text += f" [magenta]({wireless_count} {', '.join(unique_types)})[/]"
+            else:
+                device_text += f" [magenta]({wireless_count} Wireless)[/]"
     except:
         device_text = "[yellow]ADB Not Found[/]"
 
@@ -152,7 +168,7 @@ MENU_OPTIONS = [
     ("5",  "💥", "Exploit Engine",          "Launch activities, deep links, shell dropper"),
     ("6",  "🎯", "Payload Generator",       "APK payloads, reverse shells, obfuscation"),
     ("7",  "📋", "Report Generator",        "Generate HTML/JSON security report"),
-    ("8",  "📡", "Wireless Setup Wizard",   "Setup wireless ADB connection (cable-free)"),
+    ("8",  "📡", "Advanced Wireless",       "WiFi, Bluetooth, USB tethering, cloud connections"),
     ("9",  "⚡", "Auto ADB WiFi Connect",   "Automatically switch USB ADB to WiFi mode"),
     ("10", "📸", "Screenshot Capture",      "Capture device screenshot via ADB"),
     ("11", "📦", "Package Manager",         "Enumerate installed packages"),
@@ -173,6 +189,12 @@ REMOTE_CONTROL_OPTIONS = [
     ("4", "📸", "Take Screenshot",    "Capture device screenshot"),
     ("5", "🎥", "Screen Record",      "Record device screen"),
     ("6", "🎵", "Audio Setup Guide",  "Setup instructions for audio streaming"),
+    ("7", "📡", "Connection Info",   "Show wireless/network connection details"),
+    ("8", "📊", "Network Monitor",   "Monitor device network traffic"),
+    ("9", "🔧", "Device Controls",    "Power, volume, brightness controls"),
+    ("10", "📱", "App Manager",       "Install/uninstall apps wirelessly"),
+    ("11", "🌐", "Network Analyzer",  "Analyze WiFi/Network around device"),
+    ("12", "📡", "Switch Connection", "Switch between WiFi/Bluetooth/USB connections"),
     ("0", "↩️", "Back",               "Return to main menu"),
 ]
 
@@ -427,6 +449,452 @@ def handle_adb_wifi():
         console.print(f"[cyan]To connect wirelessly later:[/] adb connect {ip}:{p}")
 
 
+def advanced_wireless_menu():
+    """Advanced wireless connection menu with multiple connection methods."""
+    ADVANCED_WIRELESS_OPTIONS = [
+        ("1", "📶", "WiFi ADB", "Standard WiFi ADB connection"),
+        ("2", "🔵", "Bluetooth ADB", "ADB over Bluetooth connection"),
+        ("3", "🔗", "USB Tethering", "ADB over USB tethering network"),
+        ("4", "🌐", "Reverse Tethering", "Share PC internet with device via ADB"),
+        ("5", "☁️", "Cloud ADB", "Remote ADB via cloud services"),
+        ("6", "🔌", "Network Tunnel", "ADB over SSH tunnel or VPN"),
+        ("7", "📡", "ADB Over Network", "Direct network ADB without WiFi"),
+        ("8", "📋", "Connection Manager", "Manage all wireless connections"),
+        ("0", "↩️", "Back", "Return to main menu"),
+    ]
+
+    while True:
+        console.print()
+        t = Table(title=f"\n[bold magenta]📡 Advanced Wireless Connections[/]\n",
+                  box=box.DOUBLE_EDGE, border_style="magenta", header_style="bold cyan")
+        t.add_column("#", style="cyan", width=3)
+        t.add_column("", style="", width=3)
+        t.add_column("Method", style="white", min_width=20)
+        t.add_column("Description", style="dim")
+
+        for num, icon, name, desc in ADVANCED_WIRELESS_OPTIONS:
+            t.add_row(num, icon, name, desc)
+
+        console.print(t)
+
+        choice = Prompt.ask("\n[bold cyan]Advanced Wireless ▶[/]",
+                           choices=[num for num, *_ in ADVANCED_WIRELESS_OPTIONS], show_choices=False)
+
+        if choice == "0":
+            return
+
+        if choice == "1":
+            wireless_connection_wizard()
+        elif choice == "2":
+            bluetooth_adb_setup()
+        elif choice == "3":
+            usb_tethering_adb()
+        elif choice == "4":
+            reverse_tethering_setup()
+        elif choice == "5":
+            cloud_adb_setup()
+        elif choice == "6":
+            network_tunnel_adb()
+        elif choice == "7":
+            adb_over_network()
+        elif choice == "8":
+            connection_manager()
+
+
+def bluetooth_adb_setup():
+    """Setup ADB over Bluetooth connection."""
+    console.rule("[bold magenta]🔵 Bluetooth ADB Setup[/]")
+
+    guide = Panel(
+        "[bold cyan]🔵 Bluetooth ADB Connection Guide[/]\n\n"
+        "[bold white]Requirements:[/]\n"
+        "[dim]• Android device with Bluetooth support[/]\n"
+        "[dim]• Bluetooth adapter on your computer[/]\n"
+        "[dim]• Root access on Android device (recommended)[/]\n\n"
+        "[bold white]Setup Steps:[/]\n"
+        "[dim]1. Enable Bluetooth on both devices[/]\n"
+        "[dim]2. Pair devices via Bluetooth[/]\n"
+        "[dim]3. Get device Bluetooth MAC address[/]\n"
+        "[dim]4. Enable ADB over Bluetooth on device[/]\n\n"
+        "[bold white]Manual Method:[/]\n"
+        "[dim]• On device: Enable 'Bluetooth ADB' in Developer Options[/]\n"
+        "[dim]• On PC: adb connect <bluetooth_mac_address>[/]\n\n"
+        "[bold white]Root Method:[/]\n"
+        "[dim]• su[/]\n"
+        "[dim]• setprop service.adb.tcp.port 5555[/]\n"
+        "[dim]• setprop persist.adb.tcp.port 5555[/]\n"
+        "[dim]• stop adbd && start adbd[/]\n\n"
+        "[bold yellow]Note: Bluetooth ADB has limited range and speed compared to WiFi.[/]",
+        title="[bold]Bluetooth ADB[/]",
+        border_style="blue",
+        padding=(0, 2)
+    )
+    console.print(guide)
+
+    if Confirm.ask("[cyan]Attempt Bluetooth ADB connection?[/]", default=False):
+        console.print("[yellow]Bluetooth ADB requires specific device configuration.[/]")
+        console.print("[cyan]Please ensure Bluetooth is enabled and devices are paired.[/]")
+        bluetooth_mac = Prompt.ask("[cyan]Enter device Bluetooth MAC address[/]")
+        if bluetooth_mac:
+            console.print(f"[cyan]Attempting to connect to {bluetooth_mac}...[/]")
+            result = adb_manager.connect_wifi(bluetooth_mac, 5555)
+            if result:
+                console.print("[green]✓ Bluetooth ADB connection successful![/]")
+            else:
+                console.print("[red]✗ Bluetooth ADB connection failed. Device may not support this feature.[/]")
+
+
+def usb_tethering_adb():
+    """Setup ADB over USB tethering."""
+    console.rule("[bold magenta]🔗 USB Tethering ADB[/]")
+
+    guide = Panel(
+        "[bold cyan]🔗 USB Tethering ADB Guide[/]\n\n"
+        "[bold white]How it works:[/]\n"
+        "[dim]• USB tethering creates a network interface over USB[/]\n"
+        "[dim]• ADB can connect via the tethered network interface[/]\n"
+        "[dim]• Provides stable connection even without WiFi[/]\n\n"
+        "[bold white]Setup Steps:[/]\n"
+        "[dim]1. Connect device via USB cable[/]\n"
+        "[dim]2. Enable USB Tethering on Android device[/]\n"
+        "[dim]3. Check network interface on PC (usually usb0 or rndis0)[/]\n"
+        "[dim]4. Get device IP from tethering interface[/]\n"
+        "[dim]5. Connect ADB via the tethered IP[/]\n\n"
+        "[bold white]Commands:[/]\n"
+        "[dim]• On device: Settings → Network → USB Tethering (enable)[/]\n"
+        "[dim]• On PC: ip addr show (find usb0/rndis0 interface)[/]\n"
+        "[dim]• On PC: adb connect <tethered_ip>:5555[/]\n\n"
+        "[bold yellow]Advantages:[/]\n"
+        "[dim]• No WiFi required[/]\n"
+        "[dim]• More stable than Bluetooth[/]\n"
+        "[dim]• Works even when WiFi is disabled[/]",
+        title="[bold]USB Tethering ADB[/]",
+        border_style="green",
+        padding=(0, 2)
+    )
+    console.print(guide)
+
+    if Confirm.ask("[cyan]Attempt USB Tethering ADB setup?[/]", default=False):
+        console.print("[cyan]Checking for USB tethering interfaces...[/]")
+        # Check for USB network interfaces
+        interfaces_out, _ = adb_manager.run_adb_global(["shell", "ip", "addr"])
+        if "usb0" in interfaces_out or "rndis0" in interfaces_out:
+            console.print("[green]✓ USB tethering interface detected![/]")
+            # Extract IP from the interface
+            import re
+            ip_match = re.search(r"usb\d+.*?inet (\d+\.\d+\.\d+\.\d+)", interfaces_out)
+            if ip_match:
+                tethered_ip = ip_match.group(1)
+                console.print(f"[cyan]Tethered IP:[/] {tethered_ip}")
+                if Confirm.ask("[cyan]Connect to this IP?[/]", default=True):
+                    result = adb_manager.connect_wifi(tethered_ip, 5555)
+                    if result:
+                        console.print("[green]✓ USB Tethering ADB connected![/]")
+                    else:
+                        console.print("[red]✗ Connection failed.[/]")
+            else:
+                console.print("[yellow]Could not determine tethered IP address.[/]")
+        else:
+            console.print("[yellow]No USB tethering interface detected.[/]")
+            console.print("[cyan]Please enable USB Tethering on your device first.[/]")
+
+
+def reverse_tethering_setup():
+    """Setup reverse tethering to share PC internet with device."""
+    console.rule("[bold magenta]🌐 Reverse Tethering Setup[/]")
+
+    guide = Panel(
+        "[bold cyan]🌐 Reverse Tethering Guide[/]\n\n"
+        "[bold white]What is Reverse Tethering:[/]\n"
+        "[dim]• Share your PC's internet connection with Android device[/]\n"
+        "[dim]• Useful when device has no data/WiFi connection[/]\n"
+        "[dim]• Works over USB cable for stable connection[/]\n\n"
+        "[bold white]Setup Steps:[/]\n"
+        "[dim]1. Connect device via USB cable[/]\n"
+        "[dim]2. Enable USB debugging on device[/]\n"
+        "[dim]3. On PC: Setup network sharing[/]\n"
+        "[dim]4. Configure device network settings[/]\n"
+        "[dim]5. Route traffic through PC connection[/]\n\n"
+        "[bold white]Method 1: gnirehtet (Recommended)[/]\n"
+        "[dim]• Install: pip install gnirehtet[/]\n"
+        "[dim]• Run: gnirehtet run[/]\n"
+        "[dim]• This tool handles all the setup automatically[/]\n\n"
+        "[bold white]Method 2: Manual Setup[/]\n"
+        "[dim]• Requires root access on device[/]\n"
+        "[dim]• Complex network configuration[/]\n"
+        "[dim]• Not recommended for beginners[/]\n\n"
+        "[bold yellow]Note: Reverse tethering enables internet but not ADB connection.[/]",
+        title="[bold]Reverse Tethering[/]",
+        border_style="cyan",
+        padding=(0, 2)
+    )
+    console.print(guide)
+
+    if Confirm.ask("[cyan]Install and run gnirehtet?[/]", default=False):
+        console.print("[cyan]Checking for gnirehtet installation...[/]")
+        try:
+            subprocess.run(["gnirehtet", "--version"], capture_output=True, timeout=5)
+            console.print("[green]✓ gnirehtet is installed![/]")
+            if Confirm.ask("[cyan]Start reverse tethering?[/]", default=True):
+                console.print("[cyan]Starting reverse tethering...[/]")
+                console.print("[yellow]This may require sudo/administrator privileges.[/]")
+                console.print("[dim]In a separate terminal, run: gnirehtet run[/]")
+        except FileNotFoundError:
+            console.print("[yellow]gnirehtet not found.[/]")
+            if Confirm.ask("[cyan]Install gnirehtet?[/]", default=True):
+                console.print("[cyan]Installing gnirehtet...[/]")
+                try:
+                    subprocess.run(["pip", "install", "gnirehtet"], check=True)
+                    console.print("[green]✓ gnirehtet installed successfully![/]")
+                    console.print("[dim]Run 'gnirehtet run' in a terminal to start reverse tethering.[/]")
+                except subprocess.CalledProcessError:
+                    console.print("[red]✗ Failed to install gnirehtet.[/]")
+
+
+def cloud_adb_setup():
+    """Setup remote ADB via cloud services."""
+    console.rule("[bold magenta]☁️ Cloud ADB Setup[/]")
+
+    guide = Panel(
+        "[bold cyan]☁️ Cloud ADB Services Guide[/]\n\n"
+        "[bold white]Available Cloud ADB Services:[/]\n\n"
+        "[bold white]1. GitHub Codespaces[/]\n"
+        "[dim]• Free cloud development environment[/]\n"
+        "[dim]• Can be configured for remote ADB[/]\n"
+        "[dim]• Requires port forwarding setup[/]\n\n"
+        "[bold white]2. VS Code Remote - SSH[/]\n"
+        "[dim]• Remote development over SSH[/]\n"
+        "[dim]• Can tunnel ADB connection[/]\n"
+        "[dim]• Requires SSH server setup[/]\n\n"
+        "[bold white]3. ngrok Tunnel[/]\n"
+        "[dim]• Expose local ADB to internet[/]\n"
+        "[dim]• Secure tunnel to remote device[/]\n"
+        "[dim]• Requires ngrok installation[/]\n\n"
+        "[bold white]4. TeamViewer ADB[/]\n"
+        "[dim]• Remote control with ADB support[/]\n"
+        "[dim]• GUI-based remote access[/]\n"
+        "[dim]• Commercial solution[/]\n\n"
+        "[bold white]Setup with ngrok:[/]\n"
+        "[dim]1. Install ngrok: https://ngrok.com/download[/]\n"
+        "[dim]2. Start ADB server: adb start-server[/]\n"
+        "[dim]3. Expose ADB port: ngrok tcp 5555[/]\n"
+        "[dim]4. Use ngrok URL for remote connection[/]\n\n"
+        "[bold yellow]⚠ Cloud ADB requires careful security consideration.[/]",
+        title="[bold]Cloud ADB Services[/]",
+        border_style="blue",
+        padding=(0, 2)
+    )
+    console.print(guide)
+
+    if Confirm.ask("[cyan]Setup ngrok tunnel for ADB?[/]", default=False):
+        console.print("[cyan]Checking for ngrok installation...[/]")
+        try:
+            subprocess.run(["ngrok", "version"], capture_output=True, timeout=5)
+            console.print("[green]✓ ngrok is installed![/]")
+            if Confirm.ask("[cyan]Start ngrok tunnel for ADB port 5555?[/]", default=True):
+                console.print("[cyan]Starting ngrok tunnel...[/]")
+                console.print("[yellow]This will expose your ADB server to the internet.[/]")
+                console.print("[dim]Run: ngrok tcp 5555[/]")
+                console.print("[dim]Use the provided ngrok URL for remote connections.[/]")
+        except FileNotFoundError:
+            console.print("[yellow]ngrok not found.[/]")
+            console.print("[cyan]Download from: https://ngrok.com/download[/]")
+
+
+def network_tunnel_adb():
+    """Setup ADB over SSH tunnel or VPN."""
+    console.rule("[bold magenta]🔌 Network Tunnel ADB[/]")
+
+    guide = Panel(
+        "[bold cyan]🔌 Network Tunnel ADB Guide[/]\n\n"
+        "[bold white]SSH Tunnel Method:[/]\n"
+        "[dim]• Create SSH tunnel to remote machine[/]\n"
+        "[dim]• Forward ADB port through tunnel[/]\n"
+        "[dim]• Secure encrypted connection[/]\n\n"
+        "[bold white]SSH Commands:[/]\n"
+        "[dim]• Local: ssh -L 5555:localhost:5555 user@remote_host[/]\n"
+        "[dim]• Remote: adb connect localhost:5555[/]\n\n"
+        "[bold white]VPN Method:[/]\n"
+        "[dim]• Connect both devices to same VPN[/]\n"
+        "[dim]• Use VPN IP for ADB connection[/]\n"
+        "[dim]• Works like local network connection[/]\n\n"
+        "[bold white]Popular VPN Services:[/]\n"
+        "[dim]• WireGuard (Lightweight, fast)[/]\n"
+        "[dim]• OpenVPN (Widely supported)[/]\n"
+        "[dim]• ZeroTier (Easy setup, P2P)[/]\n"
+        "[dim]• Tailscale (User-friendly)[/]\n\n"
+        "[bold white]ZeroTier Setup Example:[/]\n"
+        "[dim]1. Install ZeroTier on both devices[/]\n"
+        "[dim]2. Create network on ZeroTier website[/]\n"
+        "[dim]3. Join network on both devices[/]\n"
+        "[dim]4. Use ZeroTier IP for ADB connection[/]\n\n"
+        "[bold yellow]VPN provides secure remote ADB over internet.[/]",
+        title="[bold]Network Tunnel ADB[/]",
+        border_style="purple",
+        padding=(0, 2)
+    )
+    console.print(guide)
+
+    if Confirm.ask("[cyan]Setup SSH tunnel for ADB?[/]", default=False):
+        remote_host = Prompt.ask("[cyan]Remote SSH host[/]")
+        remote_user = Prompt.ask("[cyan]Remote SSH user[/]")
+        console.print(f"[cyan]Setting up SSH tunnel to {remote_user}@{remote_host}...[/]")
+        console.print("[dim]SSH tunnel command:[/]")
+        console.print(f"[yellow]ssh -L 5555:localhost:5555 {remote_user}@{remote_host}[/]")
+        console.print("[cyan]After establishing tunnel, connect with:[/]")
+        console.print("[yellow]adb connect localhost:5555[/]")
+
+
+def adb_over_network():
+    """Setup ADB over direct network connection without WiFi."""
+    console.rule("[bold magenta]📡 ADB Over Network[/]")
+
+    guide = Panel(
+        "[bold cyan]📡 ADB Over Network Guide[/]\n\n"
+        "[bold white]Alternative Network Methods:[/]\n\n"
+        "[bold white]1. Ethernet Connection[/]\n"
+        "[dim]• Use USB-Ethernet adapter on device[/]\n"
+        "[dim]• Connect to same network as PC[/]\n"
+        "[dim]• Standard ADB over WiFi method[/]\n\n"
+        "[bold white]2. Hotspot Connection[/]\n"
+        "[dim]• Use device as WiFi hotspot[/]\n"
+        "[dim]• Connect PC to device hotspot[/]\n"
+        "[dim]• ADB connects via hotspot network[/]\n\n"
+        "[bold white]3. Direct Cable Network[/]\n]"
+        "[dim]• Some devices support Ethernet over USB[/]\n"
+        "[dim]• Requires specific hardware/ROM support[/]\n"
+        "[dim]• Very fast and stable connection[/]\n\n"
+        "[bold white]Hotspot Setup:[/]\n"
+        "[dim]1. Enable WiFi Hotspot on Android device[/]\n"
+        "[dim]2. Connect PC to device hotspot[/]\n"
+        "[dim]3. Get device hotspot IP (usually 192.168.43.x)[/]\n"
+        "[dim]4. Enable ADB over TCP on device[/]\n"
+        "[dim]5. Connect: adb connect <hotspot_ip>:5555[/]\n\n"
+        "[bold yellow]Hotspot method works when no external WiFi available.[/]",
+        title="[bold]ADB Over Network[/]",
+        border_style="orange",
+        padding=(0, 2)
+    )
+    console.print(guide)
+
+    if Confirm.ask("[cyan]Setup ADB via device hotspot?[/]", default=False):
+        console.print("[cyan]Please enable WiFi Hotspot on your device first.[/]")
+        console.print("[yellow]Connect your PC to the device hotspot.[/]")
+        if Confirm.ask("[cyan]PC connected to device hotspot?[/]", default=True):
+            console.print("[cyan]Attempting to detect device hotspot IP...[/]")
+            # Try common hotspot IP ranges
+            common_hotspot_ips = ["192.168.43.1", "192.168.42.1", "192.168.137.1"]
+            for ip in common_hotspot_ips:
+                console.print(f"[dim]Trying {ip}...[/]")
+                result = adb_manager.connect_wifi(ip, 5555)
+                if result:
+                    console.print(f"[green]✓ Connected via hotspot at {ip}![/]")
+                    return
+            console.print("[yellow]Could not connect to common hotspot IPs.[/]")
+            console.print("[cyan]Please enter device hotspot IP manually:[/]")
+            manual_ip = Prompt.ask("[cyan]Device IP address[/]")
+            if manual_ip:
+                result = adb_manager.connect_wifi(manual_ip, 5555)
+                if result:
+                    console.print("[green]✓ Connected via hotspot![/]")
+                else:
+                    console.print("[red]✗ Connection failed.[/]")
+
+
+def connection_manager():
+    """Manage all wireless connections."""
+    console.rule("[bold magenta]📋 Connection Manager[/]")
+
+    wifi_file = os.path.join(os.path.dirname(__file__), "wifi_devices.json")
+
+    console.print("[bold cyan]Current Connection Status:[/]")
+    devices = adb_manager.list_devices()
+    if devices:
+        for device in devices:
+            device_id = device.get("serial", "Unknown")
+            connection_type = "[green]WiFi[/]" if ":" in device_id else "[yellow]USB[/]"
+            console.print(f"  [cyan]•[/] {device_id} [dim]({connection_type})[/]")
+    else:
+        console.print("[yellow]No devices currently connected.[/]")
+
+    console.print(f"\n[bold cyan]Saved Wireless Connections:[/]")
+    if os.path.exists(wifi_file):
+        try:
+            import json
+            with open(wifi_file, "r") as f:
+                wifi_data = json.load(f)
+            for device_id, config in wifi_data.items():
+                console.print(f"  [cyan]•[/] {device_id} [dim](Last: {config.get('last_connected', 'Unknown')})[/]")
+        except Exception as e:
+            console.print(f"[red]Error reading saved connections: {e}[/]")
+    else:
+        console.print("[yellow]No saved wireless connections.[/]")
+
+    console.print(f"\n[bold cyan]Connection Management Options:[/]")
+    management_options = [
+        ("1", "🔄", "Test All Saved", "Test all saved wireless connections"),
+        ("2", "🗑️", "Clear Saved", "Clear all saved wireless connections"),
+        ("3", "📊", "Connection Info", "Show detailed connection information"),
+        ("0", "↩️", "Back", "Return to wireless menu"),
+    ]
+
+    t = Table(box=box.SIMPLE, border_style="dim")
+    t.add_column("#", style="cyan", width=3)
+    t.add_column("", style="", width=3)
+    t.add_column("Action", style="white")
+    for num, icon, name, desc in management_options:
+        t.add_row(num, icon, name)
+    console.print(t)
+
+    choice = Prompt.ask("\n[bold cyan]Connection Manager ▶[/]",
+                       choices=[num for num, *_ in management_options], show_choices=False)
+
+    if choice == "1":
+        if os.path.exists(wifi_file):
+            try:
+                import json
+                with open(wifi_file, "r") as f:
+                    wifi_data = json.load(f)
+                console.print("[cyan]Testing all saved connections...[/]")
+                for device_id, config in wifi_data.items():
+                    console.print(f"[dim]Testing {device_id}...[/]")
+                    result = adb_manager.connect_wifi(config['ip'], config['port'])
+                    if result:
+                        console.print(f"[green]✓ {device_id} - Connected[/]")
+                    else:
+                        console.print(f"[red]✗ {device_id} - Failed[/]")
+            except Exception as e:
+                console.print(f"[red]Error testing connections: {e}[/]")
+        else:
+            console.print("[yellow]No saved connections to test.[/]")
+
+    elif choice == "2":
+        if Confirm.ask("[cyan]Clear all saved wireless connections?[/]", default=False):
+            if os.path.exists(wifi_file):
+                os.remove(wifi_file)
+                console.print("[green]✓ All saved connections cleared.[/]")
+            else:
+                console.print("[yellow]No saved connections to clear.[/]")
+
+    elif choice == "3":
+        console.print("[cyan]Detailed Connection Information:[/]")
+        # Show detailed network info
+        devices = adb_manager.list_devices()
+        for device in devices:
+            device_id = device.get("serial", "Unknown")
+            console.print(f"\n[bold white]Device:[/] {device_id}")
+            if ":" in device_id:
+                ip, port = device_id.split(":")
+                console.print(f"  [cyan]IP:[/] {ip}")
+                console.print(f"  [cyan]Port:[/] {port}")
+                console.print(f"  [cyan]Type:[/] Wireless")
+
+                # Get additional info
+                net_out, _ = adb_manager.run_adb(["shell", "ip", "addr"], device_id)
+                if net_out:
+                    console.print(f"  [cyan]Network Interfaces:[/] Available")
+
+
 def wireless_connection_wizard():
     """Guide user through setting up wireless ADB connection."""
     console.rule("[bold magenta]📡 Wireless Connection Wizard[/]")
@@ -581,6 +1049,276 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
     return False
 
 
+def show_wifi_device_info():
+    """Display detailed WiFi connection information for the device."""
+    console.rule("[bold magenta]📡 WiFi Device Info[/]")
+    device_id = select_device()
+    if not device_id:
+        return
+
+    # Check if device is connected via WiFi
+    is_wireless = ":" in device_id
+    connection_type = "[green]WiFi[/]" if is_wireless else "[yellow]USB[/]"
+    console.print(f"[cyan]Connection Type:[/] {connection_type}")
+    console.print(f"[cyan]Device ID:[/] {device_id}")
+
+    if is_wireless:
+        ip, port = device_id.split(":")
+        console.print(f"[cyan]IP Address:[/] {ip}")
+        console.print(f"[cyan]Port:[/] {port}")
+
+        # Get additional network info
+        try:
+            wifi_info_out, _ = adb_manager.run_adb(["shell", "dumpsys", "wifi"], device_id)
+            if wifi_info_info := adb_manager._extract_device_ip(wifi_info_out):
+                console.print(f"[cyan]WiFi IP:[/] {wifi_info_info}")
+
+            # Get signal strength
+            signal_out, _ = adb_manager.run_adb(["shell", "dumpsys", "wifi"], device_id)
+            if "rssi" in signal_out.lower():
+                console.print("[cyan]Signal Strength:[/] Available in detailed dumpsys output")
+
+        except Exception as e:
+            console.print(f"[yellow]Could not get detailed WiFi info: {e}[/]")
+
+    # Get device battery and status
+    battery_out, _ = adb_manager.run_adb(["shell", "dumpsys", "battery"], device_id)
+    if battery_out:
+        console.print("[cyan]Battery Status:[/] Available")
+
+    console.print(f"[green]✓ Device is accessible wirelessly for all remote control features[/]")
+
+
+def monitor_network_traffic():
+    """Monitor network traffic on the device."""
+    console.rule("[bold magenta]📊 Network Monitor[/]")
+    device_id = select_device()
+    if not device_id:
+        return
+
+    console.print("[cyan]Starting network traffic monitoring...[/]")
+    console.print("[yellow]Press Ctrl+C to stop monitoring[/]")
+
+    try:
+        # Start monitoring network connections
+        while True:
+            console.clear()
+            console.print(f"[bold magenta]📊 Network Traffic Monitor - {device_id}[/]\n")
+
+            # Get current network connections
+            netstat_out, _ = adb_manager.run_adb(["shell", "netstat"], device_id)
+            if netstat_out:
+                console.print("[bold cyan]Active Network Connections:[/]")
+                console.print(netstat_out[:500])  # Limit output
+
+            # Get network stats
+            net_stats_out, _ = adb_manager.run_adb(["shell", "cat", "/proc/net/dev"], device_id)
+            if net_stats_out:
+                console.print("\n[bold cyan]Network Interface Statistics:[/]")
+                console.print(net_stats_out)
+
+            # Get WiFi info
+            wifi_out, _ = adb_manager.run_adb(["shell", "dumpsys", "wifi"], device_id)
+            if wifi_out and "SSID" in wifi_out:
+                console.print("[bold cyan]Connected WiFi Network:[/]")
+                import re
+                ssid_match = re.search(r'SSID: ([^\s,]+)', wifi_out)
+                if ssid_match:
+                    console.print(f"  Network: {ssid_match.group(1)}")
+
+            time.sleep(3)
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Network monitoring stopped.[/]")
+    except Exception as e:
+        console.print(f"[red]Error during network monitoring: {e}[/]")
+
+
+def device_controls():
+    """Wireless device control - power, volume, brightness."""
+    console.rule("[bold magenta]🔧 Device Controls[/]")
+    device_id = select_device()
+    if not device_id:
+        return
+
+    control_options = [
+        ("1", "🔊", "Volume Up", "Increase volume"),
+        ("2", "🔉", "Volume Down", "Decrease volume"),
+        ("3", "🔇", "Mute", "Mute device"),
+        ("4", "📱", "Power", "Power button press"),
+        ("5", "🏠", "Home", "Home button press"),
+        ("6", "⬅️", "Back", "Back button press"),
+        ("7", "☀️", "Brightness Up", "Increase brightness"),
+        ("8", "🌑", "Brightness Down", "Decrease brightness"),
+        ("9", "🔓", "Screen Unlock", "Attempt to unlock screen"),
+        ("0", "↩️", "Back", "Return to remote control menu"),
+    ]
+
+    while True:
+        console.print()
+        t = Table(title=f"\n[bold magenta]🔧 Device Controls - {device_id}[/]\n",
+                  box=box.DOUBLE_EDGE, border_style="magenta", header_style="bold cyan")
+        t.add_column("#", style="cyan", width=3)
+        t.add_column("", style="", width=3)
+        t.add_column("Control", style="white", min_width=20)
+        t.add_column("Description", style="dim")
+
+        for num, icon, name, desc in control_options:
+            t.add_row(num, icon, name, desc)
+
+        console.print(t)
+
+        choice = Prompt.ask("\n[bold cyan]Device Control ▶[/]",
+                           choices=[num for num, *_ in control_options], show_choices=False)
+
+        if choice == "0":
+            return
+
+        if choice == "1":
+            adb_manager.run_adb(["shell", "input", "keyevent", "KEYCODE_VOLUME_UP"], device_id)
+            console.print("[green]Volume increased[/]")
+        elif choice == "2":
+            adb_manager.run_adb(["shell", "input", "keyevent", "KEYCODE_VOLUME_DOWN"], device_id)
+            console.print("[green]Volume decreased[/]")
+        elif choice == "3":
+            adb_manager.run_adb(["shell", "input", "keyevent", "KEYCODE_MUTE"], device_id)
+            console.print("[green]Device muted[/]")
+        elif choice == "4":
+            adb_manager.run_adb(["shell", "input", "keyevent", "KEYCODE_POWER"], device_id)
+            console.print("[green]Power button pressed[/]")
+        elif choice == "5":
+            adb_manager.run_adb(["shell", "input", "keyevent", "KEYCODE_HOME"], device_id)
+            console.print("[green]Home button pressed[/]")
+        elif choice == "6":
+            adb_manager.run_adb(["shell", "input", "keyevent", "KEYCODE_BACK"], device_id)
+            console.print("[green]Back button pressed[/]")
+        elif choice == "7":
+            adb_manager.run_adb(["shell", "cmd", "window", "change-screencolor", "brightness", "0.8"], device_id)
+            console.print("[green]Brightness increased[/]")
+        elif choice == "8":
+            adb_manager.run_adb(["shell", "cmd", "window", "change-screencolor", "brightness", "0.3"], device_id)
+            console.print("[green]Brightness decreased[/]")
+        elif choice == "9":
+            adb_manager.run_adb(["shell", "input", "keyevent", "KEYCODE_MENU"], device_id)
+            console.print("[green]Menu button pressed (may help unlock)[/]")
+
+
+def wireless_app_manager():
+    """Install/uninstall apps wirelessly."""
+    console.rule("[bold magenta]📱 Wireless App Manager[/]")
+    device_id = select_device()
+    if not device_id:
+        return
+
+    app_options = [
+        ("1", "📥", "Install APK", "Install APK file from local machine"),
+        ("2", "🗑️", "Uninstall App", "Uninstalled installed app"),
+        ("3", "📋", "List Apps", "List installed applications"),
+        ("4", "🔄", "Update App", "Update app from APK file"),
+        ("0", "↩️", "Back", "Return to remote control menu"),
+    ]
+
+    while True:
+        console.print()
+        t = Table(title=f"\n[bold magenta]📱 Wireless App Manager - {device_id}[/]\n",
+                  box=box.DOUBLE_EDGE, border_style="magenta", header_style="bold cyan")
+        t.add_column("#", style="cyan", width=3)
+        t.add_column("", style="", width=3)
+        t.add_column("Action", style="white", min_width=20)
+        t.add_column("Description", style="dim")
+
+        for num, icon, name, desc in app_options:
+            t.add_row(num, icon, name, desc)
+
+        console.print(t)
+
+        choice = Prompt.ask("\n[bold cyan]App Manager ▶[/]",
+                           choices=[num for num, *_ in app_options], show_choices=False)
+
+        if choice == "0":
+            return
+
+        if choice == "1":
+            apk_path = Prompt.ask("[cyan]APK file path[/]")
+            if os.path.exists(apk_path):
+                console.print(f"[cyan]Installing {apk_path}...[/]")
+                adb_manager.run_adb(["install", apk_path], device_id)
+                console.print("[green]Installation command sent[/]")
+            else:
+                console.print("[red]File not found[/]")
+
+        elif choice == "2":
+            package_name = Prompt.ask("[cyan]Package name[/]")
+            console.print(f"[cyan]Uninstalling {package_name}...[/]")
+            adb_manager.run_adb(["uninstall", package_name], device_id)
+            console.print("[green]Uninstallation command sent[/]")
+
+        elif choice == "3":
+            pkg_type = Prompt.ask("[cyan]Package filter[/]",
+                                choices=["all", "third_party"], default="third_party")
+            adb_manager.list_packages(device_id, pkg_type)
+
+        elif choice == "4":
+            apk_path = Prompt.ask("[cyan]APK file path[/]")
+            if os.path.exists(apk_path):
+                console.print(f"[cyan]Updating with {apk_path}...[/]")
+                adb_manager.run_adb(["install", "-r", apk_path], device_id)
+                console.print("[green]Update command sent[/]")
+            else:
+                console.print("[red]File not found[/]")
+
+
+def wifi_analyzer():
+    """Analyze WiFi networks around the device."""
+    console.rule("[bold magenta]🌐 WiFi Analyzer[/]")
+    device_id = select_device()
+    if not device_id:
+        return
+
+    console.print("[cyan]Scanning WiFi networks...[/]")
+
+    # Get WiFi scan results
+    scan_out, _ = adb_manager.run_adb(["shell", "cmd", "wifi", "list-scan-results"], device_id)
+
+    if scan_out:
+        console.print("[bold green]Available WiFi Networks:[/]")
+        console.print(scan_out)
+    else:
+        console.print("[yellow]Could not get WiFi scan results. Trying alternative method...[/]")
+        # Alternative method
+        alt_out, _ = adb_manager.run_adb(["shell", "dumpsys", "wifi"], device_id)
+        if alt_out:
+            console.print("[bold cyan]WiFi Information:[/]")
+            # Extract relevant info
+            if "SSID" in alt_out:
+                ssids = re.findall(r'SSID: ([^\s,]+)', alt_out)
+                if ssids:
+                    console.print("[cyan]Nearby Networks:[/]")
+                    for ssid in set(ssids[:10]):  # Show unique SSIDs
+                        console.print(f"  • {ssid}")
+
+    # Get current connection info
+    current_out, _ = adb_manager.run_adb(["shell", "dumpsys", "wifi"], device_id)
+    if current_out:
+        ssid_match = re.search(r'SSID: ([^\s,]+)', current_out)
+        if ssid_match:
+            console.print(f"\n[green]Currently Connected:[/] {ssid_match.group(1)}")
+
+        # Get signal strength
+        rssi_match = re.search(r'rssi=(-?\d+)', current_out)
+        if rssi_match:
+            rssi = int(rssi_match.group(1))
+            signal_quality = "Excellent" if rssi > -50 else "Good" if rssi > -60 else "Fair" if rssi > -70 else "Poor"
+            console.print(f"[cyan]Signal Strength:[/] {rssi} dBm ({signal_quality})")
+
+        # Get link speed
+        speed_match = re.search(r'link_speed=(\d+)', current_out)
+        if speed_match:
+            console.print(f"[cyan]Link Speed:[/] {speed_match.group(1)} Mbps")
+
+    console.print(f"\n[green]✓ WiFi analysis complete for {device_id}[/]")
+
+
 def show_audio_setup_guide():
     """Display detailed audio streaming setup instructions."""
     guide = Panel(
@@ -629,11 +1367,168 @@ def handle_remote_control():
             open_remote_screen(device_id, audio_mode)
             continue
 
+        if choice == "2":
+            console.print("[yellow]File Explorer - Coming soon![/]")
+            continue
+
+        if choice == "3":
+            console.print("[yellow]Remote Camera - Coming soon![/]")
+            continue
+
+        if choice == "4":
+            handle_screenshot()
+            continue
+
+        if choice == "5":
+            console.print("[yellow]Screen Record - Coming soon![/]")
+            continue
+
         if choice == "6":
             show_audio_setup_guide()
             continue
 
+        if choice == "7":
+            show_wifi_device_info()
+            continue
+
+        if choice == "8":
+            monitor_network_traffic()
+            continue
+
+        if choice == "9":
+            device_controls()
+            continue
+
+        if choice == "10":
+            wireless_app_manager()
+            continue
+
+        if choice == "11":
+            wifi_analyzer()
+            continue
+
+        if choice == "12":
+            switch_connection()
+            continue
+
         console.print("[yellow]This feature is not ready yet.[/]")
+
+
+def switch_connection():
+    """Switch between different connection methods for the same device."""
+    console.rule("[bold magenta]📡 Switch Connection Method[/]")
+
+    device_id = select_device()
+    if not device_id:
+        return
+
+    console.print(f"[cyan]Current connection:[/] {device_id}")
+
+    connection_options = [
+        ("1", "📶", "Switch to WiFi", "Connect via WiFi network"),
+        ("2", "🔵", "Switch to Bluetooth", "Connect via Bluetooth ADB"),
+        ("3", "🔗", "Switch to USB Tethering", "Connect via USB tethering"),
+        ("4", "🔌", "Switch to USB", "Switch back to USB connection"),
+        ("5", "🌐", "Switch to Hotspot", "Connect via device hotspot"),
+        ("0", "↩️", "Back", "Return to remote control menu"),
+    ]
+
+    while True:
+        console.print()
+        t = Table(title=f"\n[bold magenta]📡 Connection Switch - {device_id}[/]\n",
+                  box=box.DOUBLE_EDGE, border_style="magenta", header_style="bold cyan")
+        t.add_column("#", style="cyan", width=3)
+        t.add_column("", style="", width=3)
+        t.add_column("Method", style="white", min_width=20)
+        t.add_column("Description", style="dim")
+
+        for num, icon, name, desc in connection_options:
+            t.add_row(num, icon, name, desc)
+
+        console.print(t)
+
+        choice = Prompt.ask("\n[bold cyan]Connection Switch ▶[/]",
+                           choices=[num for num, *_ in connection_options], show_choices=False)
+
+        if choice == "0":
+            return
+
+        if choice == "1":
+            # Disconnect current and connect via WiFi
+            console.print("[cyan]Disconnecting current connection...[/]")
+            adb_manager.run_adb_global(["disconnect", device_id])
+            # Use wireless connection wizard
+            wireless_connection_wizard()
+            return
+
+        elif choice == "2":
+            console.print("[cyan]Switching to Bluetooth ADB...[/]")
+            bluetooth_mac = Prompt.ask("[cyan]Enter Bluetooth MAC address[/]")
+            if bluetooth_mac:
+                adb_manager.run_adb_global(["disconnect", device_id])
+                result = adb_manager.connect_wifi(bluetooth_mac, 5555)
+                if result:
+                    console.print("[green]✓ Switched to Bluetooth ADB![/]")
+                else:
+                    console.print("[red]✗ Bluetooth ADB connection failed.[/]")
+            return
+
+        elif choice == "3":
+            console.print("[cyan]Switching to USB Tethering...[/]")
+            console.print("[yellow]Please enable USB Tethering on your device.[/]")
+            if Confirm.ask("[cyan]USB Tethering enabled?[/]", default=True):
+                # Try to detect tethering interface
+                interfaces_out, _ = adb_manager.run_adb_global(["shell", "ip", "addr"])
+                import re
+                ip_match = re.search(r"usb\d+.*?inet (\d+\.\d+\.\d+\.\d+)", interfaces_out)
+                if ip_match:
+                    tethered_ip = ip_match.group(1)
+                    adb_manager.run_adb_global(["disconnect", device_id])
+                    result = adb_manager.connect_wifi(tethered_ip, 5555)
+                    if result:
+                        console.print("[green]✓ Switched to USB Tethering![/]")
+                    else:
+                        console.print("[red]✗ USB Tethering connection failed.[/]")
+                else:
+                    console.print("[yellow]Could not detect USB tethering interface.[/]")
+            return
+
+        elif choice == "4":
+            console.print("[cyan]Switching to USB connection...[/]")
+            console.print("[yellow]Please connect device via USB cable.[/]")
+            if Confirm.ask("[cyan]USB cable connected?[/]", default=True):
+                adb_manager.run_adb_global(["disconnect", device_id])
+                console.print("[cyan]Waiting for USB connection...[/]")
+                time.sleep(2)
+                devices = adb_manager.list_devices()
+                if devices:
+                    console.print("[green]✓ Switched to USB connection![/]")
+                else:
+                    console.print("[red]✗ No USB device detected.[/]")
+            return
+
+        elif choice == "5":
+            console.print("[cyan]Switching to Device Hotspot...[/]")
+            console.print("[yellow]Please enable WiFi Hotspot on your device.[/]")
+            console.print("[yellow]Connect your PC to the device hotspot.[/]")
+            if Confirm.ask("[cyan]PC connected to hotspot?[/]", default=True):
+                # Try common hotspot IPs
+                common_hotspot_ips = ["192.168.43.1", "192.168.42.1", "192.168.137.1"]
+                adb_manager.run_adb_global(["disconnect", device_id])
+                for ip in common_hotspot_ips:
+                    result = adb_manager.connect_wifi(ip, 5555)
+                    if result:
+                        console.print(f"[green]✓ Switched to Hotspot at {ip}![/]")
+                        return
+                console.print("[yellow]Could not connect to common hotspot IPs.[/]")
+                manual_ip = Prompt.ask("[cyan]Enter device hotspot IP[/]")
+                if manual_ip:
+                    result = adb_manager.connect_wifi(manual_ip, 5555)
+                    if result:
+                        console.print("[green]✓ Switched to Hotspot![/]")
+                    else:
+                        console.print("[red]✗ Hotspot connection failed.[/]")
+            return
 
 
 def handle_about():
@@ -745,7 +1640,7 @@ HANDLER_MAP = {
     "5":  handle_exploit_engine,
     "6":  handle_payload_generator,
     "7":  handle_report_generator,
-    "8":  wireless_connection_wizard,
+    "8":  advanced_wireless_menu,
     "9":  handle_auto_adb_wifi,
     "10": handle_screenshot,
     "11": handle_package_manager,

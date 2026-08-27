@@ -31,6 +31,29 @@ def run_adb(args: list, device_id: str = None, capture: bool = True):
 
 
 def run_adb_global(args: list, capture: bool = True):
+    """Run an adb command without device specification."""
+    cmd = ["adb"] + args
+    try:
+        result = subprocess.run(cmd, capture_output=capture, text=True, timeout=30)
+        return result.stdout.strip(), result.returncode
+    except FileNotFoundError:
+        return None, -1
+    except subprocess.TimeoutExpired:
+        return "TIMEOUT", -2
+
+
+def _extract_device_ip(text: str) -> str:
+    """Extract IP address from ADB output."""
+    match = re.search(r"\binet\s+(\d+\.\d+\.\d+\.\d+)", text or "")
+    if match:
+        return match.group(1)
+    match = re.search(r"\bsrc\s+(\d+\.\d+\.\d+\.\d+)", text or "")
+    if match:
+        return match.group(1)
+    return None
+
+
+def run_adb_global(args: list, capture: bool = True):
     """Run a global adb command without selecting a device."""
     try:
         result = subprocess.run(["adb"] + args, capture_output=capture, text=True, timeout=30)
@@ -221,16 +244,6 @@ def enable_adb_wifi(device_id: str, port: int = 5555):
     else:
         console.print("[yellow]⚠  Could not determine device IP. Connect manually.[/]")
         return None, port
-
-
-def _extract_device_ip(text: str) -> str:
-    match = re.search(r"\binet\s+(\d+\.\d+\.\d+\.\d+)", text or "")
-    if match:
-        return match.group(1)
-    match = re.search(r"\bsrc\s+(\d+\.\d+\.\d+\.\d+)", text or "")
-    if match:
-        return match.group(1)
-    return None
 
 
 def _get_wifi_ip(device_id: str) -> str:
