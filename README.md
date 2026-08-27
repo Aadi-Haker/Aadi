@@ -68,7 +68,7 @@ Aadi is developed by Aadi / Aadi for authorized Android security assessment, edu
 # 1. Clone / navigate to the tool directory
 cd /path/to/aadi
 # or
-git clone https://github.com/sp3310942-hub/Aadi.git
+git clone https://github.com/Aadi-Haker/Aadi.git
 
 #2. create a virtual environment
 python -m venv venv 
