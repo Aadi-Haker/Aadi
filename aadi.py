@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║          Aadi — Advanced Android Pentesting Tool                  ║
+║          Aadi — Advanced Android Pentesting Tool                 ║
 ║          Author : Aaditya Kumar Pandey                           ║
 ║          Contact: Instagram @aadi_97621                          ║
 ║          For authorized penetration testing use only             ║
@@ -141,6 +141,82 @@ def print_banner():
     console.print()
 
 
+def auto_reconnect_wifi():
+    """Automatically try to reconnect to saved WiFi devices on startup."""
+    wifi_file = os.path.join(os.path.dirname(__file__), "wifi_devices.json")
+
+    if not os.path.exists(wifi_file):
+        return False
+
+    try:
+        import json
+        with open(wifi_file, "r") as f:
+            wifi_data = json.load(f)
+    except Exception as e:
+        console.print(f"[yellow]Error reading WiFi devices: {e}[/]")
+        return False
+
+    if not wifi_data:
+        return False
+
+    # Check if any devices are already connected
+    try:
+        current_devices = adb_manager.list_devices()
+        current_serials = [dev.get("serial", "") for dev in current_devices]
+    except:
+        current_serials = []
+
+    console.print("[cyan]🔄 Attempting auto-reconnection to saved WiFi devices...[/]")
+
+    connected_any = False
+    connected_devices = []
+    already_connected = []
+
+    for device_id, config in wifi_data.items():
+        ip = config.get('ip')
+        port = config.get('port', 5555)
+
+        if ip:
+            # Check if already connected
+            if any(ip in serial for serial in current_serials):
+                console.print(f"[dim]{ip}:{port} already connected [green]✓[/]")
+                connected_any = True
+                already_connected.append(device_id)
+                config['last_connected'] = time.strftime("%Y-%m-%d %H:%M:%S")
+                continue
+
+            console.print(f"[dim]Trying {ip}:{port}...[/]", end="")
+            result = adb_manager.connect_wifi(ip, port)
+            if result:
+                console.print(" [green]✓ Connected[/]")
+                connected_any = True
+                connected_devices.append(device_id)
+                # Update last connected time
+                config['last_connected'] = time.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                console.print(" [red]✗ Failed[/]")
+
+    # Update the file with new connection times
+    try:
+        with open(wifi_file, "w") as f:
+            json.dump(wifi_data, f, indent=2)
+    except Exception:
+        pass
+
+    if connected_any:
+        if already_connected:
+            console.print(f"[green]✓ {len(already_connected)} device(s) already connected, {len(connected_devices)} reconnected[/]")
+        else:
+            console.print(f"[green]✓ Successfully reconnected to {len(connected_devices)} WiFi device(s)[/]")
+        all_connected = already_connected + connected_devices
+        console.print(f"[dim]Connected: {', '.join(all_connected)}[/]")
+        return True
+    else:
+        console.print("[yellow]⚠ Could not auto-reconnect. Device may be offline or network changed.[/]")
+        console.print("[yellow]Connect via USB and use 'Auto ADB WiFi Connect' to update device info.[/]")
+        return False
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  MAIN MENU
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -163,7 +239,8 @@ MENU_OPTIONS = [
     ("15", "💻", "Interactive ADB Shell",   "Drop into live ADB shell"),
     ("16", "🧰", "Remote Control",          "Remote screen, file explorer, camera and device control tools"),
     ("17", "🔄", "Quick WiFi Connect",      "Connect to previously saved WiFi devices"),
-    ("18", "❔", "About",                   "About AADI"),
+    ("18", "⚙️", "WiFi Settings",          "Configure WiFi auto-reconnect settings"),
+    ("19", "❔", "About",                   "About AADI"),
     ("0",  "🚪", "Exit",                    "Exit AADI"),
 ]
 
@@ -987,6 +1064,35 @@ def handle_about():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _SESSION = {"findings": [], "permissions": [], "secrets": [], "urls": []}
+_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "aadi_config.json")
+
+
+def load_config():
+    """Load tool configuration."""
+    default_config = {
+        "auto_reconnect_wifi": True,
+        "wifi_timeout": 30,
+        "preserve_wifi_on_device": True
+    }
+
+    if os.path.exists(_CONFIG_FILE):
+        try:
+            with open(_CONFIG_FILE, "r") as f:
+                config = json.load(f)
+                default_config.update(config)
+        except Exception:
+            pass
+
+    return default_config
+
+
+def save_config(config):
+    """Save tool configuration."""
+    try:
+        with open(_CONFIG_FILE, "w") as f:
+            json.dump(config, f, indent=2)
+    except Exception as e:
+        console.print(f"[yellow]Could not save config: {e}[/]")
 
 
 def _save_to_session(data: dict, source: str):
@@ -1056,6 +1162,48 @@ def quick_wifi_connect():
             console.print("[green]✓ Saved WiFi devices cleared.[/]")
 
 
+def handle_wifi_settings():
+    """Configure WiFi auto-reconnect settings."""
+    console.rule("[bold magenta]⚙️ WiFi Settings[/]")
+
+    config = load_config()
+
+    console.print(Panel(
+        f"[bold cyan]Current WiFi Settings:[/]\n\n"
+        f"[white]Auto-reconnect on startup:[/] {'[green]Enabled[/]' if config.get('auto_reconnect_wifi', True) else '[red]Disabled[/]'}\n"
+        f"[white]WiFi connection timeout:[/] {config.get('wifi_timeout', 30)} seconds\n"
+        f"[white]Preserve WiFi on device:[/] {'[green]Enabled[/]' if config.get('preserve_wifi_on_device', True) else '[red]Disabled[/]'}\n\n"
+        f"[dim]These settings control how Aadi handles WiFi connections across VM restarts.[/]",
+        title="[bold]WiFi Configuration[/]",
+        border_style="cyan",
+        padding=(0, 2)
+    ))
+
+    choice = Prompt.ask(
+        "[cyan]What would you like to change?[/]",
+        choices=["auto_reconnect", "timeout", "preserve", "back"],
+        default="back"
+    )
+
+    if choice == "auto_reconnect":
+        config["auto_reconnect_wifi"] = not config.get("auto_reconnect_wifi", True)
+        status = "enabled" if config["auto_reconnect_wifi"] else "disabled"
+        console.print(f"[green]✓ Auto-reconnect {status}[/]")
+        save_config(config)
+
+    elif choice == "timeout":
+        new_timeout = IntPrompt.ask("[cyan]Enter new timeout (seconds)[/]", default=config.get('wifi_timeout', 30))
+        config["wifi_timeout"] = new_timeout
+        console.print(f"[green]✓ WiFi timeout set to {new_timeout} seconds[/]")
+        save_config(config)
+
+    elif choice == "preserve":
+        config["preserve_wifi_on_device"] = not config.get("preserve_wifi_on_device", True)
+        status = "enabled" if config["preserve_wifi_on_device"] else "disabled"
+        console.print(f"[green]✓ WiFi preservation {status}[/]")
+        save_config(config)
+
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  INTERACTIVE MODE
@@ -1079,7 +1227,8 @@ HANDLER_MAP = {
     "15": handle_adb_shell,
     "16": handle_remote_control,
     "17": quick_wifi_connect,
-    "18": handle_about,
+    "18": handle_wifi_settings,
+    "19": handle_about,
 }
 
 
@@ -1096,6 +1245,13 @@ def interactive_mode():
     if not Confirm.ask("\n[bold red]I confirm I have authorization to test the target system[/]", default=False):
         console.print("[yellow]Exiting. Obtain proper authorization before testing.[/]")
         sys.exit(0)
+
+    # Auto-reconnect to WiFi devices on startup (if enabled in config)
+    config = load_config()
+    if config.get("auto_reconnect_wifi", True):
+        console.print()
+        auto_reconnect_wifi()
+        console.print()
 
     while True:
         console.print()
