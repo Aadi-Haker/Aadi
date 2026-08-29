@@ -7,7 +7,6 @@ import subprocess
 import re
 import os
 import time
-import json
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -24,10 +23,7 @@ def run_adb(args: list, device_id: str = None, capture: bool = True):
     cmd += args
     try:
         result = subprocess.run(cmd, capture_output=capture, text=True, timeout=30)
-        if capture:
-            return result.stdout.strip(), result.returncode
-        else:
-            return "", result.returncode
+        return result.stdout.strip(), result.returncode
     except FileNotFoundError:
         return None, -1
     except subprocess.TimeoutExpired:
@@ -250,48 +246,14 @@ def _get_wifi_ip(device_id: str) -> str:
 
 def connect_wifi(ip: str, port: int = 5555) -> bool:
     """Connect to a device via WiFi using its IP address."""
-    out, rc = run_adb_global(["connect", f"{ip}:{port}"], capture=True)
-    # Check for successful connection (either connected or already connected)
-    if rc == 0 and ("connected" in out.lower() or "already connected" in out.lower()):
+    console.print(f"[cyan]Connecting to {ip}:{port}...[/]")
+    out, rc = run_adb(["connect", f"{ip}:{port}"], capture=True)
+    if rc == 0 and "connected" in out.lower():
+        console.print(f"[green]✓ Connected to {ip}:{port}[/]")
         return True
     else:
-        return False
-
-
-def ensure_adb_wifi_enabled(device_id: str, port: int = 5555) -> bool:
-    """Ensure ADB WiFi is enabled on the device (can be called via WiFi connection)."""
-    try:
-        # Try to enable ADB WiFi on the device remotely
-        console.print(f"[cyan]Ensuring ADB WiFi is enabled on {device_id}...[/]")
-
-        # Set the TCP port property
-        run_adb(["shell", f"setprop service.adb.tcp.port {port}"], device_id, capture=False)
-
-        # Restart ADB server on device
-        run_adb(["shell", "stop adbd"], device_id, capture=False)
-        time.sleep(1)
-        run_adb(["shell", "start adbd"], device_id, capture=False)
-
-        console.print(f"[green]✓ ADB WiFi re-enabled on device[/]")
-        return True
-    except Exception as e:
-        console.print(f"[yellow]Could not ensure ADB WiFi: {e}[/]")
-        return False
-
-
-def check_wifi_adb_persistence(device_id: str) -> bool:
-    """Check if the device can maintain WiFi ADB connection without USB."""
-    try:
-        # Check if ADB WiFi port is set
-        port_out, _ = run_adb(["shell", "getprop service.adb.tcp.port"], device_id)
-        if port_out and port_out.strip() and port_out.strip() != "0":
-            console.print(f"[green]✓ Device has ADB WiFi port set: {port_out.strip()}[/]")
-            return True
-        else:
-            console.print("[yellow]⚠ Device ADB WiFi port not set. WiFi connection may not persist after reboot.[/]")
-            return False
-    except Exception as e:
-        console.print(f"[yellow]Could not check WiFi ADB persistence: {e}[/]")
+        console.print(f"[red]✗ Failed to connect to {ip}:{port}[/]")
+        console.print(f"[dim]{out}[/]")
         return False
 
 
@@ -351,26 +313,15 @@ def auto_adb_wifi_connect(device_id: str, port: int = 5555):
     # Save WiFi connection info to a file for quick reconnect
     try:
         wifi_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "wifi_devices.json")
+        import json
         wifi_data = {}
         if os.path.exists(wifi_file):
             with open(wifi_file, "r") as f:
                 wifi_data = json.load(f)
-        wifi_data[f"{ip}:{port}"] = {
-            "ip": ip,
-            "port": port,
-            "last_connected": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "device_serial": device_id  # Store original device serial for reference
-        }
+        wifi_data[f"{ip}:{port}"] = {"ip": ip, "port": port, "last_connected": time.strftime("%Y-%m-%d %H:%M:%S")}
         with open(wifi_file, "w") as f:
             json.dump(wifi_data, f, indent=2)
         console.print(f"[green]✓ WiFi device saved for quick reconnect[/]")
-
-        # Try to ensure ADB WiFi stays enabled on the device after reboot
-        try:
-            ensure_adb_wifi_enabled(f"{ip}:{port}", port)
-        except Exception:
-            pass  # Don't fail if we can't ensure WiFi is enabled
-
     except Exception as e:
         console.print(f"[yellow]Could not save WiFi device info: {e}[/]")
 

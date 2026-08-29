@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║          Aadi — Advanced Android Pentesting Tool                 ║
+║          Aadi — Advanced Android Pentesting Tool                  ║
 ║          Author : Aaditya Kumar Pandey                           ║
 ║          Contact: Instagram @aadi_97621                          ║
 ║          For authorized penetration testing use only             ║
@@ -16,14 +16,7 @@ import json
 import random
 import shutil
 import subprocess
-import platform
 import re
-import io
-
-# Fix Unicode encoding on Windows
-if platform.system() == "Windows":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # ── Rich UI ────────────────────────────────────────────────────────────────────
 try:
@@ -94,9 +87,9 @@ def get_banner_status():
     now = datetime.now().strftime("%H:%M:%S")
 
     return (
-        f"[bold white]{now}[/]  |  "
-        f"[bold cyan]Devices:[/] {device_text}  |  "
-        f"[bold green]v{VERSION}[/]"
+        f"📅 [bold white]{now}[/]  |  "
+        f"📱 [bold cyan]Devices:[/] {device_text}  |  "
+        f"🚀 [bold green]v{VERSION}[/]"
     )
 
 def animate_glitch_banner():
@@ -131,7 +124,7 @@ def print_banner():
     animate_glitch_banner()
 
     # Tagline
-    tagline = Text("ADVANCED ANDROID PENTESTING FRAMEWORK", style="bold italic bright_magenta")
+    tagline = Text("◈ ADVANCED ANDROID PENTESTING FRAMEWORK ◈", style="bold italic bright_magenta")
     console.print(Align.center(tagline))
     console.print()
 
@@ -148,107 +141,30 @@ def print_banner():
     console.print()
 
 
-def auto_reconnect_wifi():
-    """Automatically try to reconnect to saved WiFi devices on startup."""
-    wifi_file = os.path.join(os.path.dirname(__file__), "wifi_devices.json")
-
-    if not os.path.exists(wifi_file):
-        return False
-
-    try:
-        import json
-        with open(wifi_file, "r") as f:
-            wifi_data = json.load(f)
-    except Exception as e:
-        console.print(f"[yellow]Error reading WiFi devices: {e}[/]")
-        return False
-
-    if not wifi_data:
-        return False
-
-    # Check if any devices are already connected
-    try:
-        current_devices = adb_manager.list_devices()
-        current_serials = [dev.get("serial", "") for dev in current_devices]
-    except:
-        current_serials = []
-
-    console.print("[cyan]🔄 Attempting auto-reconnection to saved WiFi devices...[/]")
-
-    connected_any = False
-    connected_devices = []
-    already_connected = []
-
-    for device_id, config in wifi_data.items():
-        ip = config.get('ip')
-        port = config.get('port', 5555)
-
-        if ip:
-            # Check if already connected
-            if any(ip in serial for serial in current_serials):
-                console.print(f"[dim]{ip}:{port} already connected [green]OK[/]")
-                connected_any = True
-                already_connected.append(device_id)
-                config['last_connected'] = time.strftime("%Y-%m-%d %H:%M:%S")
-                continue
-
-            console.print(f"[dim]Trying {ip}:{port}...[/]", end="")
-            result = adb_manager.connect_wifi(ip, port)
-            if result:
-                console.print(" [green]OK Connected[/]")
-                connected_any = True
-                connected_devices.append(device_id)
-                # Update last connected time
-                config['last_connected'] = time.strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                console.print(" [red]X Failed[/]")
-
-    # Update the file with new connection times
-    try:
-        with open(wifi_file, "w") as f:
-            json.dump(wifi_data, f, indent=2)
-    except Exception:
-        pass
-
-    if connected_any:
-        if already_connected:
-            console.print(f"[green]OK {len(already_connected)} device(s) already connected, {len(connected_devices)} reconnected[/]")
-        else:
-            console.print(f"[green]OK Successfully reconnected to {len(connected_devices)} WiFi device(s)[/]")
-        all_connected = already_connected + connected_devices
-        console.print(f"[dim]Connected: {', '.join(all_connected)}[/]")
-        return True
-    else:
-        console.print("[yellow]WARNING Could not auto-reconnect. Device may be offline or network changed.[/]")
-        console.print("[yellow]Connect via USB and use 'Auto ADB WiFi Connect' to update device info.[/]")
-        return False
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 #  MAIN MENU
 # ═══════════════════════════════════════════════════════════════════════════════
 
 MENU_OPTIONS = [
-    ("1",  "1", "Device Manager",          "List & manage connected Android devices"),
-    ("2",  "2", "APK Static Analyzer",     "Decompile & audit an APK file"),
-    ("3",  "3", "Network Scanner",         "Port scan, WiFi info, host discovery"),
-    ("4",  "4", "Vulnerability Scanner",   "CVE mapping, root check, insecure storage"),
-    ("5",  "5", "Exploit Engine",          "Launch activities, deep links, shell dropper"),
-    ("6",  "6", "Payload Generator",       "APK payloads, reverse shells, obfuscation"),
-    ("7",  "7", "Report Generator",        "Generate HTML/JSON security report"),
-    ("8",  "8", "Wireless Setup Wizard",   "Setup wireless ADB connection (cable-free)"),
-    ("9",  "9", "Auto ADB WiFi Connect",   "Automatically switch USB ADB to WiFi mode"),
-    ("10", "10", "Screenshot Capture",      "Capture device screenshot via ADB"),
-    ("11", "11", "Package Manager",         "Enumerate installed packages"),
-    ("12", "12", "Logcat Analyzer",         "Capture & analyze logcat for secrets"),
-    ("13", "13", "SSL Pinning Check",       "Detect SSL pinning in target app"),
-    ("14", "14", "File Transfer",           "Pull/push files from/to device"),
-    ("15", "15", "Interactive ADB Shell",   "Drop into live ADB shell"),
-    ("16", "16", "Remote Control",          "Remote screen, file explorer, camera and device control tools"),
-    ("17", "17", "Quick WiFi Connect",      "Connect to previously saved WiFi devices"),
-    ("18", "18", "WiFi Settings",          "Configure WiFi auto-reconnect settings"),
-    ("19", "19", "About",                   "About AADI"),
-    ("0",  "0", "Exit",                    "Exit AADI"),
+    ("1",  "📱", "Device Manager",          "List & manage connected Android devices"),
+    ("2",  "🔎", "APK Static Analyzer",     "Decompile & audit an APK file"),
+    ("3",  "🌐", "Network Scanner",         "Port scan, WiFi info, host discovery"),
+    ("4",  "🚨", "Vulnerability Scanner",   "CVE mapping, root check, insecure storage"),
+    ("5",  "💥", "Exploit Engine",          "Launch activities, deep links, shell dropper"),
+    ("6",  "🎯", "Payload Generator",       "APK payloads, reverse shells, obfuscation"),
+    ("7",  "📋", "Report Generator",        "Generate HTML/JSON security report"),
+    ("8",  "📡", "Wireless Setup Wizard",   "Setup wireless ADB connection (cable-free)"),
+    ("9",  "⚡", "Auto ADB WiFi Connect",   "Automatically switch USB ADB to WiFi mode"),
+    ("10", "📸", "Screenshot Capture",      "Capture device screenshot via ADB"),
+    ("11", "📦", "Package Manager",         "Enumerate installed packages"),
+    ("12", "🐛", "Logcat Analyzer",         "Capture & analyze logcat for secrets"),
+    ("13", "🔐", "SSL Pinning Check",       "Detect SSL pinning in target app"),
+    ("14", "📂", "File Transfer",           "Pull/push files from/to device"),
+    ("15", "💻", "Interactive ADB Shell",   "Drop into live ADB shell"),
+    ("16", "🧰", "Remote Control",          "Remote screen, file explorer, camera and device control tools"),
+    ("17", "🔄", "Quick WiFi Connect",      "Connect to previously saved WiFi devices"),
+    ("18", "❔", "About",                   "About AADI"),
+    ("0",  "🚪", "Exit",                    "Exit AADI"),
 ]
 
 REMOTE_CONTROL_OPTIONS = [
@@ -269,7 +185,7 @@ REMOTE_CONTROL_OPTIONS = [
 
 def print_main_menu():
     t = Table(
-        title=f"\n[bold magenta]Aadi  —  Main Menu[/]\n",
+        title=f"\n[bold magenta]👻  {TOOL_NAME}  —  Main Menu[/]\n",
         box=box.DOUBLE_EDGE,
         border_style="magenta",
         header_style="bold cyan",
@@ -345,7 +261,7 @@ def handle_apk_analyzer():
     findings  = apk_analyzer.analyze_apk(apk_path)
     if Confirm.ask("[cyan]Save findings to report?[/]", default=True):
         _save_to_session(findings, "apk_analysis")
-        console.print("[green]OK Added to session report.[/]")
+        console.print("[green]✓ Added to session report.[/]")
 
 
 def handle_network_scanner():
@@ -513,7 +429,7 @@ def handle_adb_wifi():
     port = IntPrompt.ask("[cyan]Port[/]", default=5555)
     ip, p = adb_manager.enable_adb_wifi(device_id, port)
     if ip:
-        console.print(f"[bold green]OK WiFi ADB enabled on:[/] {ip}:{p}")
+        console.print(f"[bold green]✓ WiFi ADB enabled on:[/] {ip}:{p}")
         console.print(f"[cyan]To connect wirelessly later:[/] adb connect {ip}:{p}")
 
 
@@ -560,7 +476,7 @@ def handle_adb_wifi():
     port = IntPrompt.ask("[cyan]Port[/]", default=5555)
     ip, p = adb_manager.enable_adb_wifi(device_id, port)
     if ip:
-        console.print(f"[bold green]OK WiFi ADB enabled on:[/] {ip}:{p}")
+        console.print(f"[bold green]✓ WiFi ADB enabled on:[/] {ip}:{p}")
         console.print(f"[cyan]To connect wirelessly later:[/] adb connect {ip}:{p}")
 
 
@@ -579,7 +495,7 @@ def handle_screenshot():
         return
     path = adb_manager.take_screenshot(device_id)
     if path:
-        console.print(f"[bold green]OK Screenshot saved:[/] {path}")
+        console.print(f"[bold green]✓ Screenshot saved:[/] {path}")
 
 
 def handle_package_manager():
@@ -652,9 +568,6 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
         "--max-size", "900",
     ]
 
-    # Detect platform for appropriate audio solutions
-    current_platform = platform.system().lower()
-
     # Audio mode configuration
     if audio_mode == "device":
         cmd.append("--no-audio")
@@ -663,111 +576,20 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
         # Default behavior - audio forwarded to laptop
         console.print("[cyan]Audio mode: Laptop only (audio forwarded)[/]")
     elif audio_mode == "both":
-        # For both mode, we want audio on both laptop and device
-        console.print("[cyan]Audio mode: Both (laptop + device)[/]")
-        console.print("[yellow]Configuring both-device audio...[/]")
-
-        # Disable scrcpy audio forwarding since it captures from device
+        # For both mode, we disable audio forwarding so device plays audio
+        # and provide guidance for getting audio on laptop too
         cmd.append("--no-audio")
-
-        # Try to launch sndcpy for audio forwarding (device plays + laptop gets audio)
-        sndcpy_launched = False
-        if current_platform == "windows":
-            # Check if sndcpy exists in common locations
-            sndcpy_paths = [
-                "sndcpy",
-                "sndcpy.exe",
-                os.path.join(os.path.dirname(__file__), "sndcpy.exe"),
-                os.path.join(os.path.dirname(os.path.dirname(__file__)), "sndcpy.exe"),
-            ]
-
-            sndcpy_cmd = None
-            for path in sndcpy_paths:
-                if os.path.exists(path) or shutil.which(path):
-                    sndcpy_cmd = [path, "-s", device_id]
-                    break
-
-            if sndcpy_cmd:
-                try:
-                    subprocess.Popen(sndcpy_cmd, creationflags=subprocess.CREATE_NO_WINDOW)
-                    console.print("[green]OK sndcpy launched for audio forwarding[/]")
-                    console.print("[green]OK Audio will play on both device and laptop[/]")
-                    sndcpy_launched = True
-                except Exception as e:
-                    console.print(f"[yellow]WARNING Could not launch sndcpy: {e}[/]")
-            else:
-                console.print("[yellow]WARNING sndcpy not found. Installing recommended for both-device audio.[/]")
-                console.print("[cyan]Download sndcpy from:[/] https://github.com/Genymobile/scrcpy/releases[/]")
-                console.print("[dim]Place sndcpy.exe in same directory as aadi.py[/]")
-
-        elif current_platform == "linux":
-            sndcpy_cmd = ["sndcpy", "-s", device_id]
-            if shutil.which("sndcpy"):
-                try:
-                    subprocess.Popen(sndcpy_cmd)
-                    console.print("[green]OK sndcpy launched for audio forwarding[/]")
-                    console.print("[green]OK Audio will play on both device and laptop[/]")
-                    sndcpy_launched = True
-                except Exception as e:
-                    console.print(f"[yellow]WARNING Could not launch sndcpy: {e}[/]")
-            else:
-                console.print("[yellow]WARNING sndcpy not found. Install sndcpy for both-device audio.[/]")
-                console.print("[cyan]Install from:[/] https://github.com/Genymobile/scrcpy/tree/master/sndcpy[/]")
-
-        else:  # macOS
-            sndcpy_cmd = ["sndcpy", "-s", device_id]
-            if shutil.which("sndcpy"):
-                try:
-                    subprocess.Popen(sndcpy_cmd)
-                    console.print("[green]OK sndcpy launched for audio forwarding[/]")
-                    console.print("[green]OK Audio will play on both device and laptop[/]")
-                    sndcpy_launched = True
-                except Exception as e:
-                    console.print(f"[yellow]WARNING Could not launch sndcpy: {e}[/]")
-            else:
-                console.print("[yellow]WARNING sndcpy not found. Install sndcpy for both-device audio.[/]")
-                console.print("[cyan]Download from:[/] https://github.com/Genymobile/scrcpy/releases[/]")
-
-        # If sndcpy failed or not found, provide fallback options
-        if not sndcpy_launched:
-            console.print("[yellow]Falling back to manual audio streaming options...[/]")
-
-            both_method = Prompt.ask(
-                "[cyan]Select alternative audio streaming method:[/]",
-                choices=["soundwire", "audiorelay", "manual"],
-                default="manual"
-            )
-
-            if both_method == "soundwire":
-                console.print("[cyan]SoundWire setup instructions:[/]")
-                console.print("[dim]1. Install SoundWire on Android from Play Store[/]")
-                console.print("[dim]2. Install SoundWire Server on Windows from soundwire.com[/]")
-                console.print("[dim]3. Connect both devices to same WiFi[/]")
-                console.print("[dim]4. Enter PC IP in Android SoundWire app[/]")
-
-            elif both_method == "audiorelay":
-                console.print("[cyan]AudioRelay setup instructions:[/]")
-                console.print("[dim]1. Install AudioRelay on Android[/]")
-                console.print("[dim]2. Install AudioRelay Server on Windows[/]")
-                console.print("[dim]3. Connect both devices to same WiFi[/]")
-                console.print("[dim]4. Configure audio routing in AudioRelay app[/]")
-
-            else:  # manual
-                console.print("[cyan]Manual audio streaming setup:[/]")
-                console.print("[dim]For laptop audio, choose one of these methods:[/]")
-                console.print("[dim]1. SoundWire (Android + Windows server)[/]")
-                console.print("[dim]2. AudioRelay (Android + Windows server)[/]")
-                console.print("[dim]3. Connect device audio jack to laptop mic/line-in[/]")
-                console.print("[dim]4. Use Bluetooth audio transmitter[/]")
-
+        console.print("[cyan]Audio mode: Both - Device audio + Laptop audio streaming[/]")
+        console.print("[yellow]Device will play audio locally. For laptop audio, use one of these methods:[/]")
+        console.print("[dim]1. Install SoundWire (Android) + SoundWire Server (PC)[/]")
+        console.print("[dim]2. Use AudioRelay app for audio streaming[/]")
+        console.print("[dim]3. Connect device audio to laptop via audio cable[/]")
+        console.print("[yellow]Audio streaming apps allow you to hear audio on both devices simultaneously.[/]")
     else:
         console.print("[yellow]Audio mode: Laptop only (default)[/]")
 
     try:
-        if current_platform == "windows":
-            subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
-        else:
-            subprocess.Popen(cmd)
+        subprocess.Popen(cmd)
         console.print("[bold green]Remote Screen launched.[/]")
         return True
     except FileNotFoundError:
@@ -814,7 +636,7 @@ def show_wifi_device_info():
     if battery_out:
         console.print("[cyan]Battery Status:[/] Available")
 
-    console.print(f"[green]OK Device is accessible wirelessly for all remote control features[/]")
+    console.print(f"[green]✓ Device is accessible wirelessly for all remote control features[/]")
 
 
 def monitor_network_traffic():
@@ -1044,7 +866,7 @@ def wifi_analyzer():
         if speed_match:
             console.print(f"[cyan]Link Speed:[/] {speed_match.group(1)} Mbps")
 
-    console.print(f"\n[green]OK WiFi analysis complete for {device_id}[/]")
+    console.print(f"\n[green]✓ WiFi analysis complete for {device_id}[/]")
 
 
 def show_audio_setup_guide():
@@ -1141,7 +963,7 @@ def handle_remote_control():
 def handle_about():
     about = Panel(
         f"\n"
-        f"  [bold magenta]Aadi v{VERSION}[/]\n\n"
+        f"  [bold magenta]👻  {TOOL_NAME} v{VERSION}[/]\n\n"
         f"  [bold cyan]Advanced Android Penetration Testing Framework[/]\n\n"
         f"  [white]A comprehensive tool for ethical hackers and security professionals.\n"
         f"  Covers static APK analysis, dynamic runtime analysis via ADB,\n"
@@ -1151,7 +973,7 @@ def handle_about():
         f"  [bold magenta]Instagram:[/] [cyan]{INSTAGRAM}[/]\n"
         f"  [bold magenta]Built by :[/] [white]Aaditya Kumar Pandey / Aadi[/]\n"
         f"  [bold magenta]Year     :[/] [white]{YEAR}[/]\n\n"
-        f"  [bold red]WARNING  For authorized penetration testing use only.[/]\n"
+        f"  [bold red]⚠  For authorized penetration testing use only.[/]\n"
         f"  [dim]Unauthorized use is illegal and unethical.[/]\n",
         title="[bold]About Aadi[/]",
         border_style="magenta",
@@ -1165,35 +987,6 @@ def handle_about():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _SESSION = {"findings": [], "permissions": [], "secrets": [], "urls": []}
-_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "aadi_config.json")
-
-
-def load_config():
-    """Load tool configuration."""
-    default_config = {
-        "auto_reconnect_wifi": True,
-        "wifi_timeout": 30,
-        "preserve_wifi_on_device": True
-    }
-
-    if os.path.exists(_CONFIG_FILE):
-        try:
-            with open(_CONFIG_FILE, "r") as f:
-                config = json.load(f)
-                default_config.update(config)
-        except Exception:
-            pass
-
-    return default_config
-
-
-def save_config(config):
-    """Save tool configuration."""
-    try:
-        with open(_CONFIG_FILE, "w") as f:
-            json.dump(config, f, indent=2)
-    except Exception as e:
-        console.print(f"[yellow]Could not save config: {e}[/]")
 
 
 def _save_to_session(data: dict, source: str):
@@ -1252,57 +1045,15 @@ def quick_wifi_connect():
             console.print(f"[cyan]Connecting to:[/] {config['ip']}:{config['port']}")
             result = adb_manager.connect_wifi(config['ip'], config['port'])
             if result:
-                console.print("[green]OK Connected successfully![/]")
+                console.print("[green]✓ Connected successfully![/]")
             else:
-                console.print("[red]X Connection failed. Device may be offline or network changed.[/]")
+                console.print("[red]✗ Connection failed. Device may be offline or network changed.[/]")
         else:
             console.print("[red]Invalid selection.[/]")
     else:
         if Confirm.ask("[cyan]Would you like to clear saved devices?[/]", default=False):
             os.remove(wifi_file)
-            console.print("[green]OK Saved WiFi devices cleared.[/]")
-
-
-def handle_wifi_settings():
-    """Configure WiFi auto-reconnect settings."""
-    console.rule("[bold magenta]⚙️ WiFi Settings[/]")
-
-    config = load_config()
-
-    console.print(Panel(
-        f"[bold cyan]Current WiFi Settings:[/]\n\n"
-        f"[white]Auto-reconnect on startup:[/] {'[green]Enabled[/]' if config.get('auto_reconnect_wifi', True) else '[red]Disabled[/]'}\n"
-        f"[white]WiFi connection timeout:[/] {config.get('wifi_timeout', 30)} seconds\n"
-        f"[white]Preserve WiFi on device:[/] {'[green]Enabled[/]' if config.get('preserve_wifi_on_device', True) else '[red]Disabled[/]'}\n\n"
-        f"[dim]These settings control how Aadi handles WiFi connections across VM restarts.[/]",
-        title="[bold]WiFi Configuration[/]",
-        border_style="cyan",
-        padding=(0, 2)
-    ))
-
-    choice = Prompt.ask(
-        "[cyan]What would you like to change?[/]",
-        choices=["auto_reconnect", "timeout", "preserve", "back"],
-        default="back"
-    )
-
-    if choice == "auto_reconnect":
-        config["auto_reconnect_wifi"] = not config.get("auto_reconnect_wifi", True)
-        status = "enabled" if config["auto_reconnect_wifi"] else "disabled"
-        console.print(f"[green]OK Auto-reconnect {status}[/]")
-        save_config(config)
-
-    elif choice == "timeout":
-        new_timeout = IntPrompt.ask("[cyan]Enter new timeout (seconds)[/]", default=config.get('wifi_timeout', 30))
-        config["wifi_timeout"] = new_timeout
-        console.print(f"[green]OK WiFi timeout set to {new_timeout} seconds[/]")
-        save_config(config)
-
-    elif choice == "preserve":
-        config["preserve_wifi_on_device"] = not config.get("preserve_wifi_on_device", True)
-        status = "enabled" if config["preserve_wifi_on_device"] else "disabled"
-        console.print(f"[green]OK WiFi preservation {status}[/]")
-        save_config(config)
+            console.print("[green]✓ Saved WiFi devices cleared.[/]")
 
 
 
@@ -1328,15 +1079,14 @@ HANDLER_MAP = {
     "15": handle_adb_shell,
     "16": handle_remote_control,
     "17": quick_wifi_connect,
-    "18": handle_wifi_settings,
-    "19": handle_about,
+    "18": handle_about,
 }
 
 
 def interactive_mode():
     print_banner()
     console.print(Panel(
-        "[bold red]WARNING  LEGAL DISCLAIMER[/]\n\n"
+        "[bold red]⚠  LEGAL DISCLAIMER[/]\n\n"
         "[white]AADI is designed for authorized security testing ONLY.\n"
         "Use of this tool against systems you do not own or have explicit written\n"
         "permission to test is [bold red]ILLEGAL[/] and may result in criminal prosecution.\n"
@@ -1347,13 +1097,6 @@ def interactive_mode():
         console.print("[yellow]Exiting. Obtain proper authorization before testing.[/]")
         sys.exit(0)
 
-    # Auto-reconnect to WiFi devices on startup (if enabled in config)
-    config = load_config()
-    if config.get("auto_reconnect_wifi", True):
-        console.print()
-        auto_reconnect_wifi()
-        console.print()
-
     while True:
         console.print()
         print_main_menu()
@@ -1361,7 +1104,7 @@ def interactive_mode():
         choice = Prompt.ask("\n[bold cyan]Aadi ▶[/]", choices=valid_choices, show_choices=False)
 
         if choice == "0":
-            console.print("\n[bold magenta]Exiting AADI. Stay ethical.[/]\n")
+            console.print("\n[bold magenta]👻 Exiting AADI. Stay ethical.[/]\n")
             sys.exit(0)
 
         handler = HANDLER_MAP.get(choice)
@@ -1372,7 +1115,7 @@ def interactive_mode():
             except KeyboardInterrupt:
                 console.print("\n[yellow]↩ Returned to main menu.[/]")
             except Exception as e:
-                console.print(f"\n[bold red]Error:[/] {e}")
+                console.print(f"\n[bold red]✗ Error:[/] {e}")
         else:
             console.print("[red]Invalid option.[/]")
 
@@ -1387,7 +1130,7 @@ def interactive_mode():
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="aadi",
-        description=f"Aadi v{VERSION} - Advanced Android Pentesting Tool by {AUTHOR}",
+        description=f"👻 Aadi v{VERSION} — Advanced Android Pentesting Tool by {AUTHOR}",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -1647,5 +1390,5 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        console.print("\n\n[bold magenta]AADI interrupted. Stay ethical.[/]\n")
+        console.print("\n\n[bold magenta]👻 AADI interrupted. Stay ethical.[/]\n")
         sys.exit(0)
