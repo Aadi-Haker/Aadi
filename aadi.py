@@ -94,9 +94,9 @@ def get_banner_status():
     now = datetime.now().strftime("%H:%M:%S")
 
     return (
-        f"📅 [bold white]{now}[/]  |  "
-        f"📱 [bold cyan]Devices:[/] {device_text}  |  "
-        f"🚀 [bold green]v{VERSION}[/]"
+        f"[bold white]{now}[/]  |  "
+        f"[bold cyan]Devices:[/] {device_text}  |  "
+        f"[bold green]v{VERSION}[/]"
     )
 
 def animate_glitch_banner():
@@ -131,7 +131,7 @@ def print_banner():
     animate_glitch_banner()
 
     # Tagline
-    tagline = Text("◈ ADVANCED ANDROID PENTESTING FRAMEWORK ◈", style="bold italic bright_magenta")
+    tagline = Text("ADVANCED ANDROID PENTESTING FRAMEWORK", style="bold italic bright_magenta")
     console.print(Align.center(tagline))
     console.print()
 
@@ -186,7 +186,7 @@ def auto_reconnect_wifi():
         if ip:
             # Check if already connected
             if any(ip in serial for serial in current_serials):
-                console.print(f"[dim]{ip}:{port} already connected [green]✓[/]")
+                console.print(f"[dim]{ip}:{port} already connected [green]OK[/]")
                 connected_any = True
                 already_connected.append(device_id)
                 config['last_connected'] = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -195,13 +195,13 @@ def auto_reconnect_wifi():
             console.print(f"[dim]Trying {ip}:{port}...[/]", end="")
             result = adb_manager.connect_wifi(ip, port)
             if result:
-                console.print(" [green]✓ Connected[/]")
+                console.print(" [green]OK Connected[/]")
                 connected_any = True
                 connected_devices.append(device_id)
                 # Update last connected time
                 config['last_connected'] = time.strftime("%Y-%m-%d %H:%M:%S")
             else:
-                console.print(" [red]✗ Failed[/]")
+                console.print(" [red]X Failed[/]")
 
     # Update the file with new connection times
     try:
@@ -212,14 +212,14 @@ def auto_reconnect_wifi():
 
     if connected_any:
         if already_connected:
-            console.print(f"[green]✓ {len(already_connected)} device(s) already connected, {len(connected_devices)} reconnected[/]")
+            console.print(f"[green]OK {len(already_connected)} device(s) already connected, {len(connected_devices)} reconnected[/]")
         else:
-            console.print(f"[green]✓ Successfully reconnected to {len(connected_devices)} WiFi device(s)[/]")
+            console.print(f"[green]OK Successfully reconnected to {len(connected_devices)} WiFi device(s)[/]")
         all_connected = already_connected + connected_devices
         console.print(f"[dim]Connected: {', '.join(all_connected)}[/]")
         return True
     else:
-        console.print("[yellow]⚠ Could not auto-reconnect. Device may be offline or network changed.[/]")
+        console.print("[yellow]WARNING Could not auto-reconnect. Device may be offline or network changed.[/]")
         console.print("[yellow]Connect via USB and use 'Auto ADB WiFi Connect' to update device info.[/]")
         return False
 
@@ -229,26 +229,26 @@ def auto_reconnect_wifi():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 MENU_OPTIONS = [
-    ("1",  "📱", "Device Manager",          "List & manage connected Android devices"),
-    ("2",  "🔎", "APK Static Analyzer",     "Decompile & audit an APK file"),
-    ("3",  "🌐", "Network Scanner",         "Port scan, WiFi info, host discovery"),
-    ("4",  "🚨", "Vulnerability Scanner",   "CVE mapping, root check, insecure storage"),
-    ("5",  "💥", "Exploit Engine",          "Launch activities, deep links, shell dropper"),
-    ("6",  "🎯", "Payload Generator",       "APK payloads, reverse shells, obfuscation"),
-    ("7",  "📋", "Report Generator",        "Generate HTML/JSON security report"),
-    ("8",  "📡", "Wireless Setup Wizard",   "Setup wireless ADB connection (cable-free)"),
-    ("9",  "⚡", "Auto ADB WiFi Connect",   "Automatically switch USB ADB to WiFi mode"),
-    ("10", "📸", "Screenshot Capture",      "Capture device screenshot via ADB"),
-    ("11", "📦", "Package Manager",         "Enumerate installed packages"),
-    ("12", "🐛", "Logcat Analyzer",         "Capture & analyze logcat for secrets"),
-    ("13", "🔐", "SSL Pinning Check",       "Detect SSL pinning in target app"),
-    ("14", "📂", "File Transfer",           "Pull/push files from/to device"),
-    ("15", "💻", "Interactive ADB Shell",   "Drop into live ADB shell"),
-    ("16", "🧰", "Remote Control",          "Remote screen, file explorer, camera and device control tools"),
-    ("17", "🔄", "Quick WiFi Connect",      "Connect to previously saved WiFi devices"),
-    ("18", "⚙️", "WiFi Settings",          "Configure WiFi auto-reconnect settings"),
-    ("19", "❔", "About",                   "About AADI"),
-    ("0",  "🚪", "Exit",                    "Exit AADI"),
+    ("1",  "1", "Device Manager",          "List & manage connected Android devices"),
+    ("2",  "2", "APK Static Analyzer",     "Decompile & audit an APK file"),
+    ("3",  "3", "Network Scanner",         "Port scan, WiFi info, host discovery"),
+    ("4",  "4", "Vulnerability Scanner",   "CVE mapping, root check, insecure storage"),
+    ("5",  "5", "Exploit Engine",          "Launch activities, deep links, shell dropper"),
+    ("6",  "6", "Payload Generator",       "APK payloads, reverse shells, obfuscation"),
+    ("7",  "7", "Report Generator",        "Generate HTML/JSON security report"),
+    ("8",  "8", "Wireless Setup Wizard",   "Setup wireless ADB connection (cable-free)"),
+    ("9",  "9", "Auto ADB WiFi Connect",   "Automatically switch USB ADB to WiFi mode"),
+    ("10", "10", "Screenshot Capture",      "Capture device screenshot via ADB"),
+    ("11", "11", "Package Manager",         "Enumerate installed packages"),
+    ("12", "12", "Logcat Analyzer",         "Capture & analyze logcat for secrets"),
+    ("13", "13", "SSL Pinning Check",       "Detect SSL pinning in target app"),
+    ("14", "14", "File Transfer",           "Pull/push files from/to device"),
+    ("15", "15", "Interactive ADB Shell",   "Drop into live ADB shell"),
+    ("16", "16", "Remote Control",          "Remote screen, file explorer, camera and device control tools"),
+    ("17", "17", "Quick WiFi Connect",      "Connect to previously saved WiFi devices"),
+    ("18", "18", "WiFi Settings",          "Configure WiFi auto-reconnect settings"),
+    ("19", "19", "About",                   "About AADI"),
+    ("0",  "0", "Exit",                    "Exit AADI"),
 ]
 
 REMOTE_CONTROL_OPTIONS = [
@@ -345,7 +345,7 @@ def handle_apk_analyzer():
     findings  = apk_analyzer.analyze_apk(apk_path)
     if Confirm.ask("[cyan]Save findings to report?[/]", default=True):
         _save_to_session(findings, "apk_analysis")
-        console.print("[green]✓ Added to session report.[/]")
+        console.print("[green]OK Added to session report.[/]")
 
 
 def handle_network_scanner():
@@ -513,7 +513,7 @@ def handle_adb_wifi():
     port = IntPrompt.ask("[cyan]Port[/]", default=5555)
     ip, p = adb_manager.enable_adb_wifi(device_id, port)
     if ip:
-        console.print(f"[bold green]✓ WiFi ADB enabled on:[/] {ip}:{p}")
+        console.print(f"[bold green]OK WiFi ADB enabled on:[/] {ip}:{p}")
         console.print(f"[cyan]To connect wirelessly later:[/] adb connect {ip}:{p}")
 
 
@@ -560,7 +560,7 @@ def handle_adb_wifi():
     port = IntPrompt.ask("[cyan]Port[/]", default=5555)
     ip, p = adb_manager.enable_adb_wifi(device_id, port)
     if ip:
-        console.print(f"[bold green]✓ WiFi ADB enabled on:[/] {ip}:{p}")
+        console.print(f"[bold green]OK WiFi ADB enabled on:[/] {ip}:{p}")
         console.print(f"[cyan]To connect wirelessly later:[/] adb connect {ip}:{p}")
 
 
@@ -579,7 +579,7 @@ def handle_screenshot():
         return
     path = adb_manager.take_screenshot(device_id)
     if path:
-        console.print(f"[bold green]✓ Screenshot saved:[/] {path}")
+        console.print(f"[bold green]OK Screenshot saved:[/] {path}")
 
 
 def handle_package_manager():
@@ -690,13 +690,13 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
             if sndcpy_cmd:
                 try:
                     subprocess.Popen(sndcpy_cmd, creationflags=subprocess.CREATE_NO_WINDOW)
-                    console.print("[green]✓ sndcpy launched for audio forwarding[/]")
-                    console.print("[green]✓ Audio will play on both device and laptop[/]")
+                    console.print("[green]OK sndcpy launched for audio forwarding[/]")
+                    console.print("[green]OK Audio will play on both device and laptop[/]")
                     sndcpy_launched = True
                 except Exception as e:
-                    console.print(f"[yellow]⚠ Could not launch sndcpy: {e}[/]")
+                    console.print(f"[yellow]WARNING Could not launch sndcpy: {e}[/]")
             else:
-                console.print("[yellow]⚠ sndcpy not found. Installing recommended for both-device audio.[/]")
+                console.print("[yellow]WARNING sndcpy not found. Installing recommended for both-device audio.[/]")
                 console.print("[cyan]Download sndcpy from:[/] https://github.com/Genymobile/scrcpy/releases[/]")
                 console.print("[dim]Place sndcpy.exe in same directory as aadi.py[/]")
 
@@ -705,13 +705,13 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
             if shutil.which("sndcpy"):
                 try:
                     subprocess.Popen(sndcpy_cmd)
-                    console.print("[green]✓ sndcpy launched for audio forwarding[/]")
-                    console.print("[green]✓ Audio will play on both device and laptop[/]")
+                    console.print("[green]OK sndcpy launched for audio forwarding[/]")
+                    console.print("[green]OK Audio will play on both device and laptop[/]")
                     sndcpy_launched = True
                 except Exception as e:
-                    console.print(f"[yellow]⚠ Could not launch sndcpy: {e}[/]")
+                    console.print(f"[yellow]WARNING Could not launch sndcpy: {e}[/]")
             else:
-                console.print("[yellow]⚠ sndcpy not found. Install sndcpy for both-device audio.[/]")
+                console.print("[yellow]WARNING sndcpy not found. Install sndcpy for both-device audio.[/]")
                 console.print("[cyan]Install from:[/] https://github.com/Genymobile/scrcpy/tree/master/sndcpy[/]")
 
         else:  # macOS
@@ -719,13 +719,13 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
             if shutil.which("sndcpy"):
                 try:
                     subprocess.Popen(sndcpy_cmd)
-                    console.print("[green]✓ sndcpy launched for audio forwarding[/]")
-                    console.print("[green]✓ Audio will play on both device and laptop[/]")
+                    console.print("[green]OK sndcpy launched for audio forwarding[/]")
+                    console.print("[green]OK Audio will play on both device and laptop[/]")
                     sndcpy_launched = True
                 except Exception as e:
-                    console.print(f"[yellow]⚠ Could not launch sndcpy: {e}[/]")
+                    console.print(f"[yellow]WARNING Could not launch sndcpy: {e}[/]")
             else:
-                console.print("[yellow]⚠ sndcpy not found. Install sndcpy for both-device audio.[/]")
+                console.print("[yellow]WARNING sndcpy not found. Install sndcpy for both-device audio.[/]")
                 console.print("[cyan]Download from:[/] https://github.com/Genymobile/scrcpy/releases[/]")
 
         # If sndcpy failed or not found, provide fallback options
@@ -814,7 +814,7 @@ def show_wifi_device_info():
     if battery_out:
         console.print("[cyan]Battery Status:[/] Available")
 
-    console.print(f"[green]✓ Device is accessible wirelessly for all remote control features[/]")
+    console.print(f"[green]OK Device is accessible wirelessly for all remote control features[/]")
 
 
 def monitor_network_traffic():
@@ -1044,7 +1044,7 @@ def wifi_analyzer():
         if speed_match:
             console.print(f"[cyan]Link Speed:[/] {speed_match.group(1)} Mbps")
 
-    console.print(f"\n[green]✓ WiFi analysis complete for {device_id}[/]")
+    console.print(f"\n[green]OK WiFi analysis complete for {device_id}[/]")
 
 
 def show_audio_setup_guide():
@@ -1151,7 +1151,7 @@ def handle_about():
         f"  [bold magenta]Instagram:[/] [cyan]{INSTAGRAM}[/]\n"
         f"  [bold magenta]Built by :[/] [white]Aaditya Kumar Pandey / Aadi[/]\n"
         f"  [bold magenta]Year     :[/] [white]{YEAR}[/]\n\n"
-        f"  [bold red]⚠  For authorized penetration testing use only.[/]\n"
+        f"  [bold red]WARNING  For authorized penetration testing use only.[/]\n"
         f"  [dim]Unauthorized use is illegal and unethical.[/]\n",
         title="[bold]About Aadi[/]",
         border_style="magenta",
@@ -1252,15 +1252,15 @@ def quick_wifi_connect():
             console.print(f"[cyan]Connecting to:[/] {config['ip']}:{config['port']}")
             result = adb_manager.connect_wifi(config['ip'], config['port'])
             if result:
-                console.print("[green]✓ Connected successfully![/]")
+                console.print("[green]OK Connected successfully![/]")
             else:
-                console.print("[red]✗ Connection failed. Device may be offline or network changed.[/]")
+                console.print("[red]X Connection failed. Device may be offline or network changed.[/]")
         else:
             console.print("[red]Invalid selection.[/]")
     else:
         if Confirm.ask("[cyan]Would you like to clear saved devices?[/]", default=False):
             os.remove(wifi_file)
-            console.print("[green]✓ Saved WiFi devices cleared.[/]")
+            console.print("[green]OK Saved WiFi devices cleared.[/]")
 
 
 def handle_wifi_settings():
@@ -1289,19 +1289,19 @@ def handle_wifi_settings():
     if choice == "auto_reconnect":
         config["auto_reconnect_wifi"] = not config.get("auto_reconnect_wifi", True)
         status = "enabled" if config["auto_reconnect_wifi"] else "disabled"
-        console.print(f"[green]✓ Auto-reconnect {status}[/]")
+        console.print(f"[green]OK Auto-reconnect {status}[/]")
         save_config(config)
 
     elif choice == "timeout":
         new_timeout = IntPrompt.ask("[cyan]Enter new timeout (seconds)[/]", default=config.get('wifi_timeout', 30))
         config["wifi_timeout"] = new_timeout
-        console.print(f"[green]✓ WiFi timeout set to {new_timeout} seconds[/]")
+        console.print(f"[green]OK WiFi timeout set to {new_timeout} seconds[/]")
         save_config(config)
 
     elif choice == "preserve":
         config["preserve_wifi_on_device"] = not config.get("preserve_wifi_on_device", True)
         status = "enabled" if config["preserve_wifi_on_device"] else "disabled"
-        console.print(f"[green]✓ WiFi preservation {status}[/]")
+        console.print(f"[green]OK WiFi preservation {status}[/]")
         save_config(config)
 
 
@@ -1336,7 +1336,7 @@ HANDLER_MAP = {
 def interactive_mode():
     print_banner()
     console.print(Panel(
-        "[bold red]⚠  LEGAL DISCLAIMER[/]\n\n"
+        "[bold red]WARNING  LEGAL DISCLAIMER[/]\n\n"
         "[white]AADI is designed for authorized security testing ONLY.\n"
         "Use of this tool against systems you do not own or have explicit written\n"
         "permission to test is [bold red]ILLEGAL[/] and may result in criminal prosecution.\n"
@@ -1372,7 +1372,7 @@ def interactive_mode():
             except KeyboardInterrupt:
                 console.print("\n[yellow]↩ Returned to main menu.[/]")
             except Exception as e:
-                console.print(f"\n[bold red]✗ Error:[/] {e}")
+                console.print(f"\n[bold red]Error:[/] {e}")
         else:
             console.print("[red]Invalid option.[/]")
 
