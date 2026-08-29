@@ -18,6 +18,12 @@ import shutil
 import subprocess
 import platform
 import re
+import io
+
+# Fix Unicode encoding on Windows
+if platform.system() == "Windows":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # ── Rich UI ────────────────────────────────────────────────────────────────────
 try:
@@ -263,7 +269,7 @@ REMOTE_CONTROL_OPTIONS = [
 
 def print_main_menu():
     t = Table(
-        title=f"\n[bold magenta]👻  {TOOL_NAME}  —  Main Menu[/]\n",
+        title=f"\n[bold magenta]Aadi  —  Main Menu[/]\n",
         box=box.DOUBLE_EDGE,
         border_style="magenta",
         header_style="bold cyan",
@@ -1137,7 +1143,7 @@ def handle_remote_control():
 def handle_about():
     about = Panel(
         f"\n"
-        f"  [bold magenta]👻  {TOOL_NAME} v{VERSION}[/]\n\n"
+        f"  [bold magenta]Aadi v{VERSION}[/]\n\n"
         f"  [bold cyan]Advanced Android Penetration Testing Framework[/]\n\n"
         f"  [white]A comprehensive tool for ethical hackers and security professionals.\n"
         f"  Covers static APK analysis, dynamic runtime analysis via ADB,\n"
@@ -1357,7 +1363,7 @@ def interactive_mode():
         choice = Prompt.ask("\n[bold cyan]Aadi ▶[/]", choices=valid_choices, show_choices=False)
 
         if choice == "0":
-            console.print("\n[bold magenta]👻 Exiting AADI. Stay ethical.[/]\n")
+            console.print("\n[bold magenta]Exiting AADI. Stay ethical.[/]\n")
             sys.exit(0)
 
         handler = HANDLER_MAP.get(choice)
@@ -1383,7 +1389,7 @@ def interactive_mode():
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="aadi",
-        description=f"👻 Aadi v{VERSION} — Advanced Android Pentesting Tool by {AUTHOR}",
+        description=f"Aadi v{VERSION} - Advanced Android Pentesting Tool by {AUTHOR}",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -1643,5 +1649,5 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        console.print("\n\n[bold magenta]👻 AADI interrupted. Stay ethical.[/]\n")
+        console.print("\n\n[bold magenta]AADI interrupted. Stay ethical.[/]\n")
         sys.exit(0)
