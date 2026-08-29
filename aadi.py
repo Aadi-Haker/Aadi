@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║          Aadi — Advanced Android Pentesting Tool                  ║
+║          Aadi — Advanced Android Pentesting Tool                 ║
 ║          Author : Aaditya Kumar Pandey                           ║
 ║          Contact: Instagram @aadi_97621                          ║
 ║          For authorized penetration testing use only             ║
