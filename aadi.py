@@ -16,6 +16,7 @@ import json
 import random
 import shutil
 import subprocess
+import platform
 import re
 
 # ── Rich UI ────────────────────────────────────────────────────────────────────
@@ -645,6 +646,9 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
         "--max-size", "900",
     ]
 
+    # Detect platform for appropriate audio solutions
+    current_platform = platform.system().lower()
+
     # Audio mode configuration
     if audio_mode == "device":
         cmd.append("--no-audio")
@@ -653,15 +657,118 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
         # Default behavior - audio forwarded to laptop
         console.print("[cyan]Audio mode: Laptop only (audio forwarded)[/]")
     elif audio_mode == "both":
-        # For both mode, we disable audio forwarding so device plays audio
-        # and provide guidance for getting audio on laptop too
-        cmd.append("--no-audio")
-        console.print("[cyan]Audio mode: Both - Device audio + Laptop audio streaming[/]")
-        console.print("[yellow]Device will play audio locally. For laptop audio, use one of these methods:[/]")
-        console.print("[dim]1. Install SoundWire (Android) + SoundWire Server (PC)[/]")
-        console.print("[dim]2. Use AudioRelay app for audio streaming[/]")
-        console.print("[dim]3. Connect device audio to laptop via audio cable[/]")
-        console.print("[yellow]Audio streaming apps allow you to hear audio on both devices simultaneously.[/]")
+        # For both mode, we need platform-specific solutions
+        console.print("[cyan]Audio mode: Both (laptop + device)[/]")
+        console.print("[yellow]Enabling both-device audio requires additional setup...[/]")
+
+        if current_platform == "windows":
+            # Windows-specific audio solutions
+            both_method = Prompt.ask(
+                "[cyan]Select audio streaming method for laptop:[/]",
+                choices=["sndcpy", "soundwire", "audiorelay", "manual"],
+                default="manual"
+            )
+
+            if both_method == "sndcpy":
+                # Use sndcpy for audio forwarding (separate from scrcpy)
+                console.print("[cyan]Using sndcpy for audio forwarding...[/]")
+                cmd.append("--no-audio")  # Disable scrcpy audio forwarding
+                console.print("[yellow]Note: This requires sndcpy installation[/]")
+                console.print("[dim]Download: https://github.com/Genymobile/scrcpy/releases[/]")
+                console.print("[dim]Extract sndcpy.exe and place in same directory as scrcpy[/]")
+
+            elif both_method == "soundwire":
+                console.print("[cyan]Using SoundWire for audio streaming...[/]")
+                cmd.append("--no-audio")  # Disable scrcpy audio forwarding
+                console.print("[yellow]SoundWire setup instructions:[/]")
+                console.print("[dim]1. Install SoundWire on Android from Play Store[/]")
+                console.print("[dim]2. Install SoundWire Server on Windows from soundwire.com[/]")
+                console.print("[dim]3. Connect both devices to same WiFi[/]")
+                console.print("[dim]4. Enter PC IP in Android SoundWire app[/]")
+
+            elif both_method == "audiorelay":
+                console.print("[cyan]Using AudioRelay for audio streaming...[/]")
+                cmd.append("--no-audio")  # Disable scrcpy audio forwarding
+                console.print("[yellow]AudioRelay setup instructions:[/]")
+                console.print("[dim]1. Install AudioRelay on Android[/]")
+                console.print("[dim]2. Install AudioRelay Server on Windows[/]")
+                console.print("[dim]3. Connect both devices to same WiFi[/]")
+                console.print("[dim]4. Configure audio routing in AudioRelay app[/]")
+
+            else:  # manual
+                console.print("[cyan]Manual audio streaming setup for Windows:[/]")
+                cmd.append("--no-audio")  # Disable scrcpy audio forwarding
+                console.print("[yellow]Device will play audio locally[/]")
+                console.print("[dim]For laptop audio, choose one of these methods:[/]")
+                console.print("[dim]1. SoundWire (Android + Windows server)[/]")
+                console.print("[dim]2. AudioRelay (Android + Windows server)[/]")
+                console.print("[dim]3. Connect device audio jack to laptop mic/line-in[/]")
+                console.print("[dim]4. Use Bluetooth audio transmitter to Bluetooth speakers[/]")
+                console.print("[dim]5. Use sndcpy for dedicated audio forwarding[/]")
+
+        elif current_platform == "linux":
+            # Linux-specific audio solutions
+            both_method = Prompt.ask(
+                "[cyan]Select audio streaming method for laptop:[/]",
+                choices=["pulseaudio", "sndcpy", "manual"],
+                default="manual"
+            )
+
+            if both_method == "pulseaudio":
+                # Use PulseAudio to duplicate audio
+                console.print("[cyan]Using PulseAudio for audio duplication...[/]")
+                cmd.append("--no-audio")  # Disable scrcpy audio forwarding
+                console.print("[yellow]Note: This requires PulseAudio audio routing setup[/]")
+                console.print("[dim]Install: sudo apt install pulseaudio pulseaudio-utils[/]")
+                console.print("[dim]Run: pactl load-module module-virtual-sink[/]")
+
+            elif both_method == "sndcpy":
+                # Use sndcpy for audio forwarding (separate from scrcpy)
+                console.print("[cyan]Using sndcpy for audio forwarding...[/]")
+                cmd.append("--no-audio")  # Disable scrcpy audio forwarding
+                console.print("[yellow]Note: This requires sndcpy installation[/]")
+                console.print("[dim]Install: https://github.com/Genymobile/scrcpy/tree/master/sndcpy[/]")
+
+            else:  # manual
+                console.print("[cyan]Manual audio streaming setup for Linux:[/]")
+                cmd.append("--no-audio")  # Disable scrcpy audio forwarding
+                console.print("[yellow]Device will play audio locally[/]")
+                console.print("[dim]For laptop audio, install one of these:[/]")
+                console.print("[dim]1. SoundWire (Android + Linux server)[/]")
+                console.print("[dim]2. AudioRelay (Android + Linux server)[/]")
+                console.print("[dim]3. Connect device audio jack to laptop line-in[/]")
+                console.print("[dim]4. Use sndcpy for dedicated audio forwarding[/]")
+
+        else:  # macOS and others
+            # macOS and other platforms
+            both_method = Prompt.ask(
+                "[cyan]Select audio streaming method for laptop:[/]",
+                choices=["sndcpy", "soundwire", "manual"],
+                default="manual"
+            )
+
+            if both_method == "sndcpy":
+                console.print("[cyan]Using sndcpy for audio forwarding...[/]")
+                cmd.append("--no-audio")  # Disable scrcpy audio forwarding
+                console.print("[yellow]Note: This requires sndcpy installation[/]")
+                console.print("[dim]Install: https://github.com/Genymobile/scrcpy/releases[/]")
+
+            elif both_method == "soundwire":
+                console.print("[cyan]Using SoundWire for audio streaming...[/]")
+                cmd.append("--no-audio")  # Disable scrcpy audio forwarding
+                console.print("[yellow]SoundWire setup instructions:[/]")
+                console.print("[dim]1. Install SoundWire on Android from Play Store[/]")
+                console.print("[dim]2. Install SoundWire Server on macOS from soundwire.com[/]")
+                console.print("[dim]3. Connect both devices to same WiFi[/]")
+
+            else:  # manual
+                console.print("[cyan]Manual audio streaming setup:[/]")
+                cmd.append("--no-audio")  # Disable scrcpy audio forwarding
+                console.print("[yellow]Device will play audio locally[/]")
+                console.print("[dim]For laptop audio, install one of these:[/]")
+                console.print("[dim]1. SoundWire (Android + macOS server)[/]")
+                console.print("[dim]2. Connect device audio jack to laptop line-in[/]")
+                console.print("[dim]3. Use sndcpy for dedicated audio forwarding[/]")
     else:
         console.print("[yellow]Audio mode: Laptop only (default)[/]")
 
