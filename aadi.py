@@ -671,105 +671,103 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
         cmd.append("--no-audio")
 
         # Try to launch sndcpy for audio forwarding (device plays + laptop gets audio)
+        sndcpy_launched = False
         if current_platform == "windows":
-            sndcpy_cmd = ["sndcpy", "-s", device_id]
-            try:
-                subprocess.Popen(sndcpy_cmd)
-                console.print("[green]✓ sndcpy launched for audio forwarding[/]")
-                console.print("[green]✓ Audio will play on both device and laptop[/]")
-            except FileNotFoundError:
+            # Check if sndcpy exists in common locations
+            sndcpy_paths = [
+                "sndcpy",
+                "sndcpy.exe",
+                os.path.join(os.path.dirname(__file__), "sndcpy.exe"),
+                os.path.join(os.path.dirname(os.path.dirname(__file__)), "sndcpy.exe"),
+            ]
+
+            sndcpy_cmd = None
+            for path in sndcpy_paths:
+                if os.path.exists(path) or shutil.which(path):
+                    sndcpy_cmd = [path, "-s", device_id]
+                    break
+
+            if sndcpy_cmd:
+                try:
+                    subprocess.Popen(sndcpy_cmd, creationflags=subprocess.CREATE_NO_WINDOW)
+                    console.print("[green]✓ sndcpy launched for audio forwarding[/]")
+                    console.print("[green]✓ Audio will play on both device and laptop[/]")
+                    sndcpy_launched = True
+                except Exception as e:
+                    console.print(f"[yellow]⚠ Could not launch sndcpy: {e}[/]")
+            else:
                 console.print("[yellow]⚠ sndcpy not found. Installing recommended for both-device audio.[/]")
                 console.print("[cyan]Download sndcpy from:[/] https://github.com/Genymobile/scrcpy/releases[/]")
-                console.print("[dim]Place sndcpy.exe in same directory as scrcpy.exe[/]")
-                console.print("[yellow]Falling back to manual audio streaming options...[/]")
-
-                # Fallback to manual methods
-                both_method = Prompt.ask(
-                    "[cyan]Select alternative audio streaming method:[/]",
-                    choices=["soundwire", "audiorelay", "manual"],
-                    default="manual"
-                )
-
-                if both_method == "soundwire":
-                    console.print("[cyan]SoundWire setup instructions:[/]")
-                    console.print("[dim]1. Install SoundWire on Android from Play Store[/]")
-                    console.print("[dim]2. Install SoundWire Server on Windows from soundwire.com[/]")
-                    console.print("[dim]3. Connect both devices to same WiFi[/]")
-                    console.print("[dim]4. Enter PC IP in Android SoundWire app[/]")
-
-                elif both_method == "audiorelay":
-                    console.print("[cyan]AudioRelay setup instructions:[/]")
-                    console.print("[dim]1. Install AudioRelay on Android[/]")
-                    console.print("[dim]2. Install AudioRelay Server on Windows[/]")
-                    console.print("[dim]3. Connect both devices to same WiFi[/]")
-                    console.print("[dim]4. Configure audio routing in AudioRelay app[/]")
-
-                else:  # manual
-                    console.print("[cyan]Manual audio streaming setup:[/]")
-                    console.print("[dim]For laptop audio, choose one of these methods:[/]")
-                    console.print("[dim]1. SoundWire (Android + Windows server)[/]")
-                    console.print("[dim]2. AudioRelay (Android + Windows server)[/]")
-                    console.print("[dim]3. Connect device audio jack to laptop mic/line-in[/]")
-                    console.print("[dim]4. Use Bluetooth audio transmitter[/]")
+                console.print("[dim]Place sndcpy.exe in same directory as aadi.py[/]")
 
         elif current_platform == "linux":
             sndcpy_cmd = ["sndcpy", "-s", device_id]
-            try:
-                subprocess.Popen(sndcpy_cmd)
-                console.print("[green]✓ sndcpy launched for audio forwarding[/]")
-                console.print("[green]✓ Audio will play on both device and laptop[/]")
-            except FileNotFoundError:
+            if shutil.which("sndcpy"):
+                try:
+                    subprocess.Popen(sndcpy_cmd)
+                    console.print("[green]✓ sndcpy launched for audio forwarding[/]")
+                    console.print("[green]✓ Audio will play on both device and laptop[/]")
+                    sndcpy_launched = True
+                except Exception as e:
+                    console.print(f"[yellow]⚠ Could not launch sndcpy: {e}[/]")
+            else:
                 console.print("[yellow]⚠ sndcpy not found. Install sndcpy for both-device audio.[/]")
                 console.print("[cyan]Install from:[/] https://github.com/Genymobile/scrcpy/tree/master/sndcpy[/]")
 
-                # Fallback to manual methods
-                both_method = Prompt.ask(
-                    "[cyan]Select alternative audio streaming method:[/]",
-                    choices=["pulseaudio", "manual"],
-                    default="manual"
-                )
-
-                if both_method == "pulseaudio":
-                    console.print("[cyan]PulseAudio setup instructions:[/]")
-                    console.print("[dim]Install: sudo apt install pulseaudio pulseaudio-utils[/]")
-                    console.print("[dim]Run: pactl load-module module-virtual-sink[/]")
-
-                else:  # manual
-                    console.print("[cyan]Manual audio streaming setup:[/]")
-                    console.print("[dim]For laptop audio, install SoundWire or use audio cable[/]")
-
         else:  # macOS
             sndcpy_cmd = ["sndcpy", "-s", device_id]
-            try:
-                subprocess.Popen(sndcpy_cmd)
-                console.print("[green]✓ sndcpy launched for audio forwarding[/]")
-                console.print("[green]✓ Audio will play on both device and laptop[/]")
-            except FileNotFoundError:
+            if shutil.which("sndcpy"):
+                try:
+                    subprocess.Popen(sndcpy_cmd)
+                    console.print("[green]✓ sndcpy launched for audio forwarding[/]")
+                    console.print("[green]✓ Audio will play on both device and laptop[/]")
+                    sndcpy_launched = True
+                except Exception as e:
+                    console.print(f"[yellow]⚠ Could not launch sndcpy: {e}[/]")
+            else:
                 console.print("[yellow]⚠ sndcpy not found. Install sndcpy for both-device audio.[/]")
                 console.print("[cyan]Download from:[/] https://github.com/Genymobile/scrcpy/releases[/]")
 
-                # Fallback to manual methods
-                both_method = Prompt.ask(
-                    "[cyan]Select alternative audio streaming method:[/]",
-                    choices=["soundwire", "manual"],
-                    default="manual"
-                )
+        # If sndcpy failed or not found, provide fallback options
+        if not sndcpy_launched:
+            console.print("[yellow]Falling back to manual audio streaming options...[/]")
 
-                if both_method == "soundwire":
-                    console.print("[cyan]SoundWire setup instructions:[/]")
-                    console.print("[dim]1. Install SoundWire on Android from Play Store[/]")
-                    console.print("[dim]2. Install SoundWire Server on macOS from soundwire.com[/]")
-                    console.print("[dim]3. Connect both devices to same WiFi[/]")
+            both_method = Prompt.ask(
+                "[cyan]Select alternative audio streaming method:[/]",
+                choices=["soundwire", "audiorelay", "manual"],
+                default="manual"
+            )
 
-                else:  # manual
-                    console.print("[cyan]Manual audio streaming setup:[/]")
-                    console.print("[dim]For laptop audio, install SoundWire or use audio cable[/]")
+            if both_method == "soundwire":
+                console.print("[cyan]SoundWire setup instructions:[/]")
+                console.print("[dim]1. Install SoundWire on Android from Play Store[/]")
+                console.print("[dim]2. Install SoundWire Server on Windows from soundwire.com[/]")
+                console.print("[dim]3. Connect both devices to same WiFi[/]")
+                console.print("[dim]4. Enter PC IP in Android SoundWire app[/]")
+
+            elif both_method == "audiorelay":
+                console.print("[cyan]AudioRelay setup instructions:[/]")
+                console.print("[dim]1. Install AudioRelay on Android[/]")
+                console.print("[dim]2. Install AudioRelay Server on Windows[/]")
+                console.print("[dim]3. Connect both devices to same WiFi[/]")
+                console.print("[dim]4. Configure audio routing in AudioRelay app[/]")
+
+            else:  # manual
+                console.print("[cyan]Manual audio streaming setup:[/]")
+                console.print("[dim]For laptop audio, choose one of these methods:[/]")
+                console.print("[dim]1. SoundWire (Android + Windows server)[/]")
+                console.print("[dim]2. AudioRelay (Android + Windows server)[/]")
+                console.print("[dim]3. Connect device audio jack to laptop mic/line-in[/]")
+                console.print("[dim]4. Use Bluetooth audio transmitter[/]")
 
     else:
         console.print("[yellow]Audio mode: Laptop only (default)[/]")
 
     try:
-        subprocess.Popen(cmd)
+        if current_platform == "windows":
+            subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
+        else:
+            subprocess.Popen(cmd)
         console.print("[bold green]Remote Screen launched.[/]")
         return True
     except FileNotFoundError:
