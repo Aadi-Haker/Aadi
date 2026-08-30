@@ -436,7 +436,37 @@ def handle_adb_wifi():
 def wireless_connection_wizard():
     """Guide user through setting up wireless ADB connection."""
     console.rule("[bold magenta]📡 Wireless Connection Wizard[/]")
+    
+    # Check for existing saved WiFi devices first
+    wifi_file = os.path.join(os.path.dirname(__file__), "wifi_devices.json")
+    if os.path.exists(wifi_file):
+        try:
+            import json
+            with open(wifi_file, "r") as f:
+                wifi_data = json.load(f)
+            if wifi_data:
+                console.print("[green]Found saved WiFi devices![/]")
+                device_list = list(wifi_data.keys())
+                for i, device_id in enumerate(device_list, 1):
+                    config = wifi_data[device_id]
+                    console.print(f"  [cyan]{i}.[/] {device_id} [dim](Last: {config.get('last_connected', 'Unknown')})[/]")
+                
+                if Confirm.ask("[cyan]Would you like to reconnect to a saved device without USB?[/]", default=True):
+                    choice = IntPrompt.ask("[cyan]Enter device number[/]", default=1)
+                    if 1 <= choice <= len(device_list):
+                        device_id = device_list[choice - 1]
+                        config = wifi_data[device_id]
+                        console.print(f"[cyan]Attempting to reconnect to:[/] {config['ip']}:{config['port']}")
+                        result = adb_manager.connect_wifi(config['ip'], config['port'])
+                        if result:
+                            console.print("[green]✓ Reconnected successfully! No USB cable needed.[/]")
+                            return
+                        else:
+                            console.print("[yellow]Reconnection failed. Let's set up a new connection.[/]")
+        except Exception as e:
+            console.print(f"[yellow]Could not read saved devices: {e}[/]")
 
+        # Continue with the normal wizard for new setup
     wizard = Panel(
         "[bold cyan]📡 Wireless ADB Setup Guide[/]\n\n"
         "[bold white]Step 1: Initial USB Connection[/]\n"
@@ -576,10 +606,9 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
         # Default behavior - audio forwarded to laptop
         console.print("[cyan]Audio mode: Laptop only (audio forwarded)[/]")
     elif audio_mode == "both":
-        # For both mode, we disable audio forwarding so device plays audio
-        # and provide guidance for getting audio on laptop too
+         # Use scrcpy's built-in audio duplication (works for both USB and WiFi)
         cmd.append("--audio-dup")
-        console.print("[cyan]Audio mode: Both - Audio duplicated to both device and laptop[/]")
+        console.print("[cyan]Audio mode: Both - Audio duplicated to both device and laptop via scrcpy[/]")
         console.print("[yellow]Device will play audio locally. For laptop audio, use one of these methods:[/]")
         console.print("[dim]1. Install SoundWire (Android) + SoundWire Server (PC)[/]")
         console.print("[dim]2. Use AudioRelay app for audio streaming[/]")
@@ -1010,6 +1039,32 @@ def _get_session() -> dict:
     return _SESSION.copy()
 
 
+# ADD THIS FUNCTION HERE
+def auto_reconnect_saved_devices():
+    """Attempt to automatically reconnect to saved WiFi devices on startup."""
+    wifi_file = os.path.join(os.path.dirname(__file__), "wifi_devices.json")
+    if not os.path.exists(wifi_file):
+        return
+    
+    try:
+        import json
+        with open(wifi_file, "r") as f:
+            wifi_data = json.load(f)
+        
+        if not wifi_data:
+            return
+            
+        console.print("[cyan]Found saved WiFi devices. Attempting auto-reconnect...[/]")
+        for device_id, config in wifi_data.items():
+            console.print(f"[dim]Trying {config['ip']}:{config['port']}...[/]")
+            result = adb_manager.connect_wifi(config['ip'], config['port'])
+            if result:
+                console.print(f"[green]✓ Auto-reconnected to {device_id}[/]")
+                return  # Success, stop trying other devices
+    except Exception as e:
+        console.print(f"[dim]Auto-reconnect failed: {e}[/]")
+
+
 def quick_wifi_connect():
     """Quick connect to previously saved WiFi devices."""
     wifi_file = os.path.join(os.path.dirname(__file__), "wifi_devices.json")
@@ -1085,6 +1140,10 @@ HANDLER_MAP = {
 
 def interactive_mode():
     print_banner()
+    
+    # ADD THIS LINE HERE
+    auto_reconnect_saved_devices()
+    
     console.print(Panel(
         "[bold red]⚠  LEGAL DISCLAIMER[/]\n\n"
         "[white]AADI is designed for authorized security testing ONLY.\n"
