@@ -165,9 +165,7 @@ MENU_OPTIONS = [
     ("15", "💻", "Interactive ADB Shell", "Drop into live ADB shell"),
     ("16", "🧰", "Remote Control", "Remote screen, file explorer, camera and device control tools"),
     ("17", "🔄", "Quick WiFi Connect", "Connect to previously saved WiFi devices"),
-    ("18", "🌍", "Cross-Network ADB", "Setup ADB over internet with security"),
-    ("19", "📡", "Remote Android Admin", "Remote administration with authorization"),
-    ("20", "❔", "About", "About AADI"),
+    ("18", "❔", "About", "About AADI"),
     ("0", "🚪", "Exit", "Exit AADI"),
 ]
 
@@ -246,86 +244,9 @@ def select_device() -> str:
     return serial
 
 
-# ADD THIS HELPER FUNCTION BEFORE THE HANDLERS
-def check_device_authorization() -> bool:
-    """Check if device is authorized for remote administration."""
-    # This would check database for authorization status
-    from modules.database import NetworkDatabase
-
-    db = NetworkDatabase()
-    # Implementation would check device authorization status
-    # For now, return True for testing
-    db.close()
-    return True
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 #  MODULE HANDLERS
 # ═══════════════════════════════════════════════════════════════════════════════
-
-
-# ADD THE PREVIOUS FUNCTION (handle_cross_network_adb) HERE
-def handle_cross_network_adb():
-    """Setup ADB over internet with proper security."""
-    console.print("[bold yellow]⚠ Cross-Network ADB Setup[/]")
-    console.print("[dim]This requires:[/]")
-    console.print("[dim]1. Port forwarding on your router[/]")
-    console.print("[dim]2. Dynamic DNS service[/]")
-    console.print("[dim]3. Strong authentication[/]")
-    console.print("[dim]4. Device owner consent[/]")
-    console.print("[dim]5. SSL/TLS encryption[/]")
-
-    if not Confirm.ask("[cyan]I have proper authorization and consent[/]", default=False):
-        console.print("[yellow]Setup cancelled. Authorization required.[/]")
-        return
-
-
-# ADD THIS NEW FUNCTION RIGHT AFTER THE PREVIOUS ONE
-def handle_remote_android_admin():
-    """Remote Android administration with proper authorization."""
-    console.print("[bold cyan]📡 Remote Android Administration[/]")
-
-    # Check authorization
-    if not check_device_authorization():
-        console.print("[red]Device authorization required[/]")
-        return
-
-    # Options for different connection types
-    console.print("[cyan]Connection Method:[/]")
-    console.print("1. Same WiFi (ADB)")
-    console.print("2. Internet ADB (port forwarding)")
-    console.print("3. Cellular (MDM)")
-    console.print("4. Third-party service")
-
-
-def handle_device_manager():
-    console.rule("[bold magenta]📱 Device Manager[/]")
-
-
-# ADD THIS FUNCTION HERE
-def handle_cross_network_adb():
-    """Setup ADB over internet with proper security."""
-    console.print("[bold yellow]⚠ Cross-Network ADB Setup[/]")
-    console.print("[dim]This requires:[/]")
-    console.print("[dim]1. Port forwarding on your router[/]")
-    console.print("[dim]2. Dynamic DNS service[/]")
-    console.print("[dim]3. Strong authentication[/]")
-    console.print("[dim]4. Device owner consent[/]")
-    console.print("[dim]5. SSL/TLS encryption[/]")
-
-    if not Confirm.ask("[cyan]I have proper authorization and consent[/]", default=False):
-        console.print("[yellow]Setup cancelled. Authorization required.[/]")
-        return
-
-    # Implementation would include:
-    # - Port forwarding configuration
-    # - DDNS setup
-    # - Authentication mechanisms
-    # - Security warnings
-
-
-def handle_device_manager():
-    console.rule("[bold magenta]📱 Device Manager[/]")
 
 
 def handle_device_manager():
@@ -579,18 +500,6 @@ def wireless_connection_wizard():
         console.print("[cyan]Please connect your device via USB first (one-time requirement)...[/]")
         time.sleep(2)
         handle_auto_adb_wifi()
-
-
-def handle_adb_wifi():
-    console.rule("[bold magenta]📡 ADB WiFi Connect[/]")
-    device_id = select_device()
-    if not device_id:
-        return
-    port = IntPrompt.ask("[cyan]Port[/]", default=5555)
-    ip, p = adb_manager.enable_adb_wifi(device_id, port)
-    if ip:
-        console.print(f"[bold green]✓ WiFi ADB enabled on:[/] {ip}:{p}")
-        console.print(f"[cyan]To connect wirelessly later:[/] adb connect {ip}:{p}")
 
 
 def handle_auto_adb_wifi():
@@ -1122,7 +1031,6 @@ def _get_session() -> dict:
     return _SESSION.copy()
 
 
-# ADD THIS FUNCTION HERE
 def auto_reconnect_saved_devices():
     """Attempt to automatically reconnect to saved WiFi devices on startup."""
     wifi_file = os.path.join(os.path.dirname(__file__), "wifi_devices.json")
@@ -1216,16 +1124,14 @@ HANDLER_MAP = {
     "15": handle_adb_shell,
     "16": handle_remote_control,
     "17": quick_wifi_connect,
-    "18": handle_cross_network_adb,
-    "19": handle_remote_android_admin,
-    "20": handle_about,
+    "18": handle_about,
 }
 
 
 def interactive_mode():
     print_banner()
 
-    # ADD THIS LINE HERE
+    # Auto-reconnect to saved WiFi devices on startup
     auto_reconnect_saved_devices()
 
     console.print(Panel(
