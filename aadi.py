@@ -578,8 +578,8 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
     elif audio_mode == "both":
         # For both mode, we disable audio forwarding so device plays audio
         # and provide guidance for getting audio on laptop too
-        cmd.append("--no-audio")
-        console.print("[cyan]Audio mode: Both - Device audio + Laptop audio streaming[/]")
+        cmd.append("--audio-dup")
+        console.print("[cyan]Audio mode: Both - Audio duplicated to both device and laptop[/]")
         console.print("[yellow]Device will play audio locally. For laptop audio, use one of these methods:[/]")
         console.print("[dim]1. Install SoundWire (Android) + SoundWire Server (PC)[/]")
         console.print("[dim]2. Use AudioRelay app for audio streaming[/]")
