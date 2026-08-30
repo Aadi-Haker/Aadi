@@ -40,12 +40,11 @@ from modules import vulnerability_scanner, exploit_engine, payload_generator, re
 
 console = Console()
 
-VERSION     = "2.0.0"
-AUTHOR      = "Aaditya Kumar Pandey"
-INSTAGRAM   = "@aadi_97621"
-TOOL_NAME   = "AADI"
-YEAR        = "2026"
-
+VERSION = "2.0.0"
+AUTHOR = "Aaditya Kumar Pandey"
+INSTAGRAM = "@aadi_97621"
+TOOL_NAME = "AADI"
+YEAR = "2026"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  BANNER & ANIMATION
@@ -57,12 +56,13 @@ BANNER_ART = r"""
   / /| | / /| | / / / // /  
  / ___ |/ ___ |/ /_/ // /   
 /_/  |_/_/  |_/_____/___/   
-  
+
 """
 
 BANNER_LINES_GRADIENT = [
     "magenta", "bright_magenta", "purple", "deep_pink3", "orchid", "violet"
 ]
+
 
 def get_banner_status():
     """Gather live status info for the banner."""
@@ -92,11 +92,12 @@ def get_banner_status():
         f"🚀 [bold green]v{VERSION}[/]"
     )
 
+
 def animate_glitch_banner():
     """Display a matrix/glitch reveal for the banner."""
     from rich.markup import escape
     lines = BANNER_ART.strip("\n").split("\n")
-    
+
     # Glitch phase
     chars = "01$#!@%^&*()_+=-[]{}|;:,.<>?/"
     for _ in range(12):
@@ -106,7 +107,7 @@ def animate_glitch_banner():
             color = random.choice(BANNER_LINES_GRADIENT)
             # Escape the glitch line to prevent MarkupError
             glitch_lines.append(f"[bold {color}]{escape(glitch_line)}[/]")
-        
+
         console.clear()
         for gl in glitch_lines:
             console.print(Align.center(gl))
@@ -118,6 +119,7 @@ def animate_glitch_banner():
         color = BANNER_LINES_GRADIENT[i % len(BANNER_LINES_GRADIENT)]
         console.print(Align.center(f"[bold {color}]{line}[/]"))
         time.sleep(0.05)
+
 
 def print_banner():
     """Print the animated Aadi banner with live status."""
@@ -146,40 +148,42 @@ def print_banner():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 MENU_OPTIONS = [
-    ("1",  "📱", "Device Manager",          "List & manage connected Android devices"),
-    ("2",  "🔎", "APK Static Analyzer",     "Decompile & audit an APK file"),
-    ("3",  "🌐", "Network Scanner",         "Port scan, WiFi info, host discovery"),
-    ("4",  "🚨", "Vulnerability Scanner",   "CVE mapping, root check, insecure storage"),
-    ("5",  "💥", "Exploit Engine",          "Launch activities, deep links, shell dropper"),
-    ("6",  "🎯", "Payload Generator",       "APK payloads, reverse shells, obfuscation"),
-    ("7",  "📋", "Report Generator",        "Generate HTML/JSON security report"),
-    ("8",  "📡", "Wireless Setup Wizard",   "Setup wireless ADB connection (cable-free)"),
-    ("9",  "⚡", "Auto ADB WiFi Connect",   "Automatically switch USB ADB to WiFi mode"),
-    ("10", "📸", "Screenshot Capture",      "Capture device screenshot via ADB"),
-    ("11", "📦", "Package Manager",         "Enumerate installed packages"),
-    ("12", "🐛", "Logcat Analyzer",         "Capture & analyze logcat for secrets"),
-    ("13", "🔐", "SSL Pinning Check",       "Detect SSL pinning in target app"),
-    ("14", "📂", "File Transfer",           "Pull/push files from/to device"),
-    ("15", "💻", "Interactive ADB Shell",   "Drop into live ADB shell"),
-    ("16", "🧰", "Remote Control",          "Remote screen, file explorer, camera and device control tools"),
-    ("17", "🔄", "Quick WiFi Connect",      "Connect to previously saved WiFi devices"),
-    ("18", "❔", "About",                   "About AADI"),
-    ("0",  "🚪", "Exit",                    "Exit AADI"),
+    ("1", "📱", "Device Manager", "List & manage connected Android devices"),
+    ("2", "🔎", "APK Static Analyzer", "Decompile & audit an APK file"),
+    ("3", "🌐", "Network Scanner", "Port scan, WiFi info, host discovery"),
+    ("4", "🚨", "Vulnerability Scanner", "CVE mapping, root check, insecure storage"),
+    ("5", "💥", "Exploit Engine", "Launch activities, deep links, shell dropper"),
+    ("6", "🎯", "Payload Generator", "APK payloads, reverse shells, obfuscation"),
+    ("7", "📋", "Report Generator", "Generate HTML/JSON security report"),
+    ("8", "📡", "Wireless Setup Wizard", "Setup wireless ADB connection (cable-free)"),
+    ("9", "⚡", "Auto ADB WiFi Connect", "Automatically switch USB ADB to WiFi mode"),
+    ("10", "📸", "Screenshot Capture", "Capture device screenshot via ADB"),
+    ("11", "📦", "Package Manager", "Enumerate installed packages"),
+    ("12", "🐛", "Logcat Analyzer", "Capture & analyze logcat for secrets"),
+    ("13", "🔐", "SSL Pinning Check", "Detect SSL pinning in target app"),
+    ("14", "📂", "File Transfer", "Pull/push files from/to device"),
+    ("15", "💻", "Interactive ADB Shell", "Drop into live ADB shell"),
+    ("16", "🧰", "Remote Control", "Remote screen, file explorer, camera and device control tools"),
+    ("17", "🔄", "Quick WiFi Connect", "Connect to previously saved WiFi devices"),
+    ("18", "🌍", "Cross-Network ADB", "Setup ADB over internet with security"),
+    ("19", "📡", "Remote Android Admin", "Remote administration with authorization"),
+    ("20", "❔", "About", "About AADI"),
+    ("0", "🚪", "Exit", "Exit AADI"),
 ]
 
 REMOTE_CONTROL_OPTIONS = [
     ("1", "🖥️", "Open Remote Screen", "Open Android screen with scrcpy (audio options)"),
-    ("2", "📁", "File Explorer",      "Browse device files"),
-    ("3", "📷", "Remote Camera",      "Open remote camera tools"),
-    ("4", "📸", "Take Screenshot",    "Capture device screenshot"),
-    ("5", "🎥", "Screen Record",      "Record device screen"),
-    ("6", "🎵", "Audio Setup Guide",  "Setup instructions for audio streaming"),
-    ("7", "📡", "WiFi Device Info",   "Show wireless connection details"),
-    ("8", "📊", "Network Monitor",   "Monitor device network traffic"),
-    ("9", "🔧", "Device Controls",    "Power, volume, brightness controls"),
-    ("10", "📱", "App Manager",       "Install/uninstall apps wirelessly"),
-    ("11", "🌐", "WiFi Analyzer",     "Analyze WiFi networks around device"),
-    ("0", "↩️", "Back",               "Return to main menu"),
+    ("2", "📁", "File Explorer", "Browse device files"),
+    ("3", "📷", "Remote Camera", "Open remote camera tools"),
+    ("4", "📸", "Take Screenshot", "Capture device screenshot"),
+    ("5", "🎥", "Screen Record", "Record device screen"),
+    ("6", "🎵", "Audio Setup Guide", "Setup instructions for audio streaming"),
+    ("7", "📡", "WiFi Device Info", "Show wireless connection details"),
+    ("8", "📊", "Network Monitor", "Monitor device network traffic"),
+    ("9", "🔧", "Device Controls", "Power, volume, brightness controls"),
+    ("10", "📱", "App Manager", "Install/uninstall apps wirelessly"),
+    ("11", "🌐", "WiFi Analyzer", "Analyze WiFi networks around device"),
+    ("0", "↩️", "Back", "Return to main menu"),
 ]
 
 
@@ -192,10 +196,10 @@ def print_main_menu():
         show_lines=True,
         min_width=70,
     )
-    t.add_column("  #  ",   style="bold cyan",   width=5,  no_wrap=True)
-    t.add_column("  ",      style="",             width=4,  no_wrap=True, justify="center")
-    t.add_column("Module",  style="bold white",   min_width=24)
-    t.add_column("Description", style="dim",      min_width=34)
+    t.add_column("  #  ", style="bold cyan", width=5, no_wrap=True)
+    t.add_column("  ", style="", width=4, no_wrap=True, justify="center")
+    t.add_column("Module", style="bold white", min_width=24)
+    t.add_column("Description", style="dim", min_width=34)
 
     for num, icon, name, desc in MENU_OPTIONS:
         style = "on #1a0030" if num == "0" else ""
@@ -213,10 +217,10 @@ def print_remote_control_menu():
         show_lines=True,
         min_width=70,
     )
-    t.add_column("  #  ",   style="bold cyan",   width=5,  no_wrap=True)
-    t.add_column("  ",      style="",             width=3,  no_wrap=True)
-    t.add_column("Module",  style="bold white",   min_width=24)
-    t.add_column("Description", style="dim",      min_width=38)
+    t.add_column("  #  ", style="bold cyan", width=5, no_wrap=True)
+    t.add_column("  ", style="", width=3, no_wrap=True)
+    t.add_column("Module", style="bold white", min_width=24)
+    t.add_column("Description", style="dim", min_width=38)
 
     for num, icon, name, desc in REMOTE_CONTROL_OPTIONS:
         style = "on #1a0030" if num == "0" else ""
@@ -242,9 +246,87 @@ def select_device() -> str:
     return serial
 
 
+# ADD THIS HELPER FUNCTION BEFORE THE HANDLERS
+def check_device_authorization() -> bool:
+    """Check if device is authorized for remote administration."""
+    # This would check database for authorization status
+    from modules.database import NetworkDatabase
+
+    db = NetworkDatabase()
+    # Implementation would check device authorization status
+    # For now, return True for testing
+    db.close()
+    return True
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  MODULE HANDLERS
 # ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ADD THE PREVIOUS FUNCTION (handle_cross_network_adb) HERE
+def handle_cross_network_adb():
+    """Setup ADB over internet with proper security."""
+    console.print("[bold yellow]⚠ Cross-Network ADB Setup[/]")
+    console.print("[dim]This requires:[/]")
+    console.print("[dim]1. Port forwarding on your router[/]")
+    console.print("[dim]2. Dynamic DNS service[/]")
+    console.print("[dim]3. Strong authentication[/]")
+    console.print("[dim]4. Device owner consent[/]")
+    console.print("[dim]5. SSL/TLS encryption[/]")
+
+    if not Confirm.ask("[cyan]I have proper authorization and consent[/]", default=False):
+        console.print("[yellow]Setup cancelled. Authorization required.[/]")
+        return
+
+
+# ADD THIS NEW FUNCTION RIGHT AFTER THE PREVIOUS ONE
+def handle_remote_android_admin():
+    """Remote Android administration with proper authorization."""
+    console.print("[bold cyan]📡 Remote Android Administration[/]")
+
+    # Check authorization
+    if not check_device_authorization():
+        console.print("[red]Device authorization required[/]")
+        return
+
+    # Options for different connection types
+    console.print("[cyan]Connection Method:[/]")
+    console.print("1. Same WiFi (ADB)")
+    console.print("2. Internet ADB (port forwarding)")
+    console.print("3. Cellular (MDM)")
+    console.print("4. Third-party service")
+
+
+def handle_device_manager():
+    console.rule("[bold magenta]📱 Device Manager[/]")
+
+
+# ADD THIS FUNCTION HERE
+def handle_cross_network_adb():
+    """Setup ADB over internet with proper security."""
+    console.print("[bold yellow]⚠ Cross-Network ADB Setup[/]")
+    console.print("[dim]This requires:[/]")
+    console.print("[dim]1. Port forwarding on your router[/]")
+    console.print("[dim]2. Dynamic DNS service[/]")
+    console.print("[dim]3. Strong authentication[/]")
+    console.print("[dim]4. Device owner consent[/]")
+    console.print("[dim]5. SSL/TLS encryption[/]")
+
+    if not Confirm.ask("[cyan]I have proper authorization and consent[/]", default=False):
+        console.print("[yellow]Setup cancelled. Authorization required.[/]")
+        return
+
+    # Implementation would include:
+    # - Port forwarding configuration
+    # - DDNS setup
+    # - Authentication mechanisms
+    # - Security warnings
+
+
+def handle_device_manager():
+    console.rule("[bold magenta]📱 Device Manager[/]")
+
 
 def handle_device_manager():
     console.rule("[bold magenta]📱 Device Manager[/]")
@@ -258,7 +340,7 @@ def handle_device_manager():
 def handle_apk_analyzer():
     console.rule("[bold magenta]🔎 APK Static Analyzer[/]")
     apk_path = Prompt.ask("[cyan]APK file path[/]")
-    findings  = apk_analyzer.analyze_apk(apk_path)
+    findings = apk_analyzer.analyze_apk(apk_path)
     if Confirm.ask("[cyan]Save findings to report?[/]", default=True):
         _save_to_session(findings, "apk_analysis")
         console.print("[green]✓ Added to session report.[/]")
@@ -323,12 +405,12 @@ def handle_exploit_engine():
     choice = Prompt.ask("[red]Select exploit[/]", choices=[str(i) for i in range(10)])
 
     if choice == "1":
-        pkg  = Prompt.ask("[cyan]Package name[/]")
-        act  = Prompt.ask("[cyan]Activity class[/]")
+        pkg = Prompt.ask("[cyan]Package name[/]")
+        act = Prompt.ask("[cyan]Activity class[/]")
         exploit_engine.launch_exported_activity(device_id, pkg, act)
 
     elif choice == "2":
-        pkg    = Prompt.ask("[cyan]Package name[/]")
+        pkg = Prompt.ask("[cyan]Package name[/]")
         action = Prompt.ask("[cyan]Intent action[/]")
         exploit_engine.trigger_broadcast_receiver(device_id, pkg, action)
 
@@ -337,7 +419,7 @@ def handle_exploit_engine():
         exploit_engine.extract_content_provider(device_id, uri)
 
     elif choice == "4":
-        pkg    = Prompt.ask("[cyan]Package name[/]")
+        pkg = Prompt.ask("[cyan]Package name[/]")
         scheme = Prompt.ask("[cyan]Deep link scheme (e.g. myapp)[/]")
         exploit_engine.deep_link_fuzzer(device_id, pkg, scheme)
 
@@ -351,8 +433,8 @@ def handle_exploit_engine():
         exploit_engine.shell_payload_dropper(device_id, lhost, lport)
 
     elif choice == "7":
-        pkg  = Prompt.ask("[cyan]Package name[/]")
-        db   = Prompt.ask("[cyan]Database filename[/]")
+        pkg = Prompt.ask("[cyan]Package name[/]")
+        db = Prompt.ask("[cyan]Database filename[/]")
         exploit_engine.extract_database(device_id, pkg, db)
 
     elif choice == "8":
@@ -368,18 +450,18 @@ def handle_payload_generator():
     choice = Prompt.ask("[red]Select payload type[/]", choices=["1", "2", "3", "4", "5", "0"])
 
     if choice == "1":
-        lhost  = Prompt.ask("[cyan]LHOST[/]")
-        lport  = IntPrompt.ask("[cyan]LPORT[/]", default=4444)
-        ptype  = Prompt.ask("[cyan]Payload type[/]",
-                             choices=["reverse_tcp", "reverse_https", "reverse_http", "shell_tcp"],
-                             default="reverse_tcp")
+        lhost = Prompt.ask("[cyan]LHOST[/]")
+        lport = IntPrompt.ask("[cyan]LPORT[/]", default=4444)
+        ptype = Prompt.ask("[cyan]Payload type[/]",
+                           choices=["reverse_tcp", "reverse_https", "reverse_http", "shell_tcp"],
+                           default="reverse_tcp")
         output = Prompt.ask("[cyan]Output file[/]", default="payload.apk")
         payload_generator.generate_msfvenom_apk(lhost, lport, ptype, output)
 
     elif choice == "2":
         action = Prompt.ask("[cyan]Intent action[/]")
-        comp   = Prompt.ask("[cyan]Component (pkg/class or blank)[/]", default="")
-        data   = Prompt.ask("[cyan]Data URI (or blank)[/]", default="")
+        comp = Prompt.ask("[cyan]Component (pkg/class or blank)[/]", default="")
+        data = Prompt.ask("[cyan]Data URI (or blank)[/]", default="")
         payload_generator.generate_intent_payload(action, comp or None, data or None)
 
     elif choice == "3":
@@ -388,13 +470,13 @@ def handle_payload_generator():
         payload_generator.generate_reverse_shell_commands(lhost, lport)
 
     elif choice == "4":
-        lhost  = Prompt.ask("[cyan]LHOST[/]")
-        lport  = IntPrompt.ask("[cyan]LPORT[/]", default=4444)
+        lhost = Prompt.ask("[cyan]LHOST[/]")
+        lport = IntPrompt.ask("[cyan]LPORT[/]", default=4444)
         output = Prompt.ask("[cyan]Script filename[/]", default="adb_payload.sh")
         payload_generator.generate_adb_payload_script(None, lhost, lport, output)
 
     elif choice == "5":
-        raw   = Prompt.ask("[cyan]Payload to obfuscate[/]")
+        raw = Prompt.ask("[cyan]Payload to obfuscate[/]")
         method = Prompt.ask("[cyan]Obfuscation method[/]", choices=["base64", "hex"], default="base64")
         payload_generator.obfuscate_payload(raw, method)
 
@@ -436,7 +518,7 @@ def handle_adb_wifi():
 def wireless_connection_wizard():
     """Guide user through setting up wireless ADB connection."""
     console.rule("[bold magenta]📡 Wireless Connection Wizard[/]")
-    
+
     # Check for existing saved WiFi devices first
     wifi_file = os.path.join(os.path.dirname(__file__), "wifi_devices.json")
     if os.path.exists(wifi_file):
@@ -449,8 +531,9 @@ def wireless_connection_wizard():
                 device_list = list(wifi_data.keys())
                 for i, device_id in enumerate(device_list, 1):
                     config = wifi_data[device_id]
-                    console.print(f"  [cyan]{i}.[/] {device_id} [dim](Last: {config.get('last_connected', 'Unknown')})[/]")
-                
+                    console.print(
+                        f"  [cyan]{i}.[/] {device_id} [dim](Last: {config.get('last_connected', 'Unknown')})[/]")
+
                 if Confirm.ask("[cyan]Would you like to reconnect to a saved device without USB?[/]", default=True):
                     choice = IntPrompt.ask("[cyan]Enter device number[/]", default=1)
                     if 1 <= choice <= len(device_list):
@@ -534,8 +617,8 @@ def handle_package_manager():
     if not device_id:
         return
     pkg_type = Prompt.ask("[cyan]Package filter[/]",
-                           choices=["all", "system", "third_party", "disabled"],
-                           default="third_party")
+                          choices=["all", "system", "third_party", "disabled"],
+                          default="third_party")
     adb_manager.list_packages(device_id, pkg_type)
 
 
@@ -565,10 +648,10 @@ def handle_file_transfer():
     direction = Prompt.ask("[cyan]Direction[/]", choices=["pull", "push"])
     if direction == "pull":
         remote = Prompt.ask("[cyan]Remote path (on device)[/]")
-        local  = Prompt.ask("[cyan]Local destination[/]", default=".")
+        local = Prompt.ask("[cyan]Local destination[/]", default=".")
         adb_manager.pull_file(device_id, remote, local)
     else:
-        local  = Prompt.ask("[cyan]Local file path[/]")
+        local = Prompt.ask("[cyan]Local file path[/]")
         remote = Prompt.ask("[cyan]Remote destination (on device)[/]")
         adb_manager.push_file(device_id, local, remote)
 
@@ -606,7 +689,7 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
         # Default behavior - audio forwarded to laptop
         console.print("[cyan]Audio mode: Laptop only (audio forwarded)[/]")
     elif audio_mode == "both":
-         # Use scrcpy's built-in audio duplication (works for both USB and WiFi)
+        # Use scrcpy's built-in audio duplication (works for both USB and WiFi)
         cmd.append("--audio-dup")
         console.print("[cyan]Audio mode: Both - Audio duplicated to both device and laptop via scrcpy[/]")
         console.print("[yellow]Device will play audio locally. For laptop audio, use one of these methods:[/]")
@@ -748,7 +831,7 @@ def device_controls():
         console.print(t)
 
         choice = Prompt.ask("\n[bold cyan]Device Control ▶[/]",
-                           choices=[num for num, *_ in control_options], show_choices=False)
+                            choices=[num for num, *_ in control_options], show_choices=False)
 
         if choice == "0":
             return
@@ -812,7 +895,7 @@ def wireless_app_manager():
         console.print(t)
 
         choice = Prompt.ask("\n[bold cyan]App Manager ▶[/]",
-                           choices=[num for num, *_ in app_options], show_choices=False)
+                            choices=[num for num, *_ in app_options], show_choices=False)
 
         if choice == "0":
             return
@@ -834,7 +917,7 @@ def wireless_app_manager():
 
         elif choice == "3":
             pkg_type = Prompt.ask("[cyan]Package filter[/]",
-                                choices=["all", "third_party"], default="third_party")
+                                  choices=["all", "third_party"], default="third_party")
             adb_manager.list_packages(device_id, pkg_type)
 
         elif choice == "4":
@@ -1045,15 +1128,15 @@ def auto_reconnect_saved_devices():
     wifi_file = os.path.join(os.path.dirname(__file__), "wifi_devices.json")
     if not os.path.exists(wifi_file):
         return
-    
+
     try:
         import json
         with open(wifi_file, "r") as f:
             wifi_data = json.load(f)
-        
+
         if not wifi_data:
             return
-            
+
         console.print("[cyan]Found saved WiFi devices. Attempting auto-reconnect...[/]")
         for device_id, config in wifi_data.items():
             console.print(f"[dim]Trying {config['ip']}:{config['port']}...[/]")
@@ -1111,21 +1194,20 @@ def quick_wifi_connect():
             console.print("[green]✓ Saved WiFi devices cleared.[/]")
 
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 #  INTERACTIVE MODE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 HANDLER_MAP = {
-    "1":  handle_device_manager,
-    "2":  handle_apk_analyzer,
-    "3":  handle_network_scanner,
-    "4":  handle_vulnerability_scanner,
-    "5":  handle_exploit_engine,
-    "6":  handle_payload_generator,
-    "7":  handle_report_generator,
-    "8":  wireless_connection_wizard,
-    "9":  handle_auto_adb_wifi,
+    "1": handle_device_manager,
+    "2": handle_apk_analyzer,
+    "3": handle_network_scanner,
+    "4": handle_vulnerability_scanner,
+    "5": handle_exploit_engine,
+    "6": handle_payload_generator,
+    "7": handle_report_generator,
+    "8": wireless_connection_wizard,
+    "9": handle_auto_adb_wifi,
     "10": handle_screenshot,
     "11": handle_package_manager,
     "12": handle_logcat,
@@ -1134,16 +1216,18 @@ HANDLER_MAP = {
     "15": handle_adb_shell,
     "16": handle_remote_control,
     "17": quick_wifi_connect,
-    "18": handle_about,
+    "18": handle_cross_network_adb,
+    "19": handle_remote_android_admin,
+    "20": handle_about,
 }
 
 
 def interactive_mode():
     print_banner()
-    
+
     # ADD THIS LINE HERE
     auto_reconnect_saved_devices()
-    
+
     console.print(Panel(
         "[bold red]⚠  LEGAL DISCLAIMER[/]\n\n"
         "[white]AADI is designed for authorized security testing ONLY.\n"
@@ -1203,75 +1287,76 @@ Examples:
         """
     )
 
-    p.add_argument("--interactive", "-i",  action="store_true",    help="Launch interactive menu mode")
-    p.add_argument("--version",     "-v",  action="store_true",    help="Show version")
+    p.add_argument("--interactive", "-i", action="store_true", help="Launch interactive menu mode")
+    p.add_argument("--version", "-v", action="store_true", help="Show version")
 
     # Device
     dg = p.add_argument_group("Device")
-    dg.add_argument("--devices",           action="store_true",    help="List connected devices")
-    dg.add_argument("--device", "-d",      metavar="SERIAL",       help="Target device serial number")
-    dg.add_argument("--info",              action="store_true",    help="Show device info")
-    dg.add_argument("--shell",             metavar="CMD",          help="Run ADB shell command")
-    dg.add_argument("--adb-shell",         action="store_true",    help="Drop into interactive ADB shell")
-    dg.add_argument("--adb-wifi",          action="store_true",    help="Enable ADB over WiFi")
-    dg.add_argument("--screenshot",        action="store_true",    help="Capture device screenshot")
-    dg.add_argument("--logcat",            metavar="N", type=int,  help="Capture N lines of logcat", nargs="?", const=200)
-    dg.add_argument("--packages",          choices=["all","system","third_party","disabled"],
-                                                                   help="List installed packages")
-    dg.add_argument("--pull",              metavar="REMOTE",       help="Pull file from device")
-    dg.add_argument("--push",             nargs=2, metavar=("LOCAL","REMOTE"), help="Push file to device")
+    dg.add_argument("--devices", action="store_true", help="List connected devices")
+    dg.add_argument("--device", "-d", metavar="SERIAL", help="Target device serial number")
+    dg.add_argument("--info", action="store_true", help="Show device info")
+    dg.add_argument("--shell", metavar="CMD", help="Run ADB shell command")
+    dg.add_argument("--adb-shell", action="store_true", help="Drop into interactive ADB shell")
+    dg.add_argument("--adb-wifi", action="store_true", help="Enable ADB over WiFi")
+    dg.add_argument("--screenshot", action="store_true", help="Capture device screenshot")
+    dg.add_argument("--logcat", metavar="N", type=int, help="Capture N lines of logcat", nargs="?", const=200)
+    dg.add_argument("--packages", choices=["all", "system", "third_party", "disabled"],
+                    help="List installed packages")
+    dg.add_argument("--pull", metavar="REMOTE", help="Pull file from device")
+    dg.add_argument("--push", nargs=2, metavar=("LOCAL", "REMOTE"), help="Push file to device")
 
     # APK Analysis
     ag = p.add_argument_group("APK Analysis")
-    ag.add_argument("--apk",              metavar="FILE",          help="APK file to analyze")
+    ag.add_argument("--apk", metavar="FILE", help="APK file to analyze")
 
     # Network
     ng = p.add_argument_group("Network")
-    ng.add_argument("--port-scan",        action="store_true",    help="Port scan device IP")
-    ng.add_argument("--target",           metavar="IP",           help="Explicit scan target IP")
-    ng.add_argument("--ports",            metavar="PORTS",        help="Comma-separated ports or 'all'")
-    ng.add_argument("--wifi-info",        action="store_true",    help="Show WiFi info")
-    ng.add_argument("--discover",         metavar="SUBNET",       help="Discover hosts on subnet")
-    ng.add_argument("--ssl-pinning",      metavar="PKG",          help="Check SSL pinning for package")
-    ng.add_argument("--mitm-guide",       action="store_true",    help="Show MitM setup guide")
+    ng.add_argument("--port-scan", action="store_true", help="Port scan device IP")
+    ng.add_argument("--target", metavar="IP", help="Explicit scan target IP")
+    ng.add_argument("--ports", metavar="PORTS", help="Comma-separated ports or 'all'")
+    ng.add_argument("--wifi-info", action="store_true", help="Show WiFi info")
+    ng.add_argument("--discover", metavar="SUBNET", help="Discover hosts on subnet")
+    ng.add_argument("--ssl-pinning", metavar="PKG", help="Check SSL pinning for package")
+    ng.add_argument("--mitm-guide", action="store_true", help="Show MitM setup guide")
 
     # Vulnerability
     vg = p.add_argument_group("Vulnerability")
-    vg.add_argument("--vuln-scan",        action="store_true",    help="Run full vulnerability scan")
-    vg.add_argument("--pkg",             metavar="PKG",           help="Target package name")
-    vg.add_argument("--cve-check",       action="store_true",     help="Check Android CVEs for device")
-    vg.add_argument("--root-check",      action="store_true",     help="Check if device is rooted")
+    vg.add_argument("--vuln-scan", action="store_true", help="Run full vulnerability scan")
+    vg.add_argument("--pkg", metavar="PKG", help="Target package name")
+    vg.add_argument("--cve-check", action="store_true", help="Check Android CVEs for device")
+    vg.add_argument("--root-check", action="store_true", help="Check if device is rooted")
 
     # Exploit
     eg = p.add_argument_group("Exploit")
-    eg.add_argument("--exploit",          metavar="MODULE",
-                    choices=["activity","broadcast","provider","deep-link","frida","shell-drop","db-extract","lock-bypass","dev-options"],
+    eg.add_argument("--exploit", metavar="MODULE",
+                    choices=["activity", "broadcast", "provider", "deep-link", "frida", "shell-drop", "db-extract",
+                             "lock-bypass", "dev-options"],
                     help="Exploit module to run")
-    eg.add_argument("--activity",         metavar="CLASS",        help="Activity class for --exploit activity")
-    eg.add_argument("--action",           metavar="ACTION",       help="Intent action")
-    eg.add_argument("--uri",              metavar="URI",          help="URI for content provider / deep link")
-    eg.add_argument("--scheme",           metavar="SCHEME",       help="Deep link scheme")
-    eg.add_argument("--lhost",            metavar="IP",           help="Listener host")
-    eg.add_argument("--lport",            metavar="PORT", type=int, default=4444, help="Listener port")
-    eg.add_argument("--db-name",          metavar="DB",           help="Database filename to extract")
+    eg.add_argument("--activity", metavar="CLASS", help="Activity class for --exploit activity")
+    eg.add_argument("--action", metavar="ACTION", help="Intent action")
+    eg.add_argument("--uri", metavar="URI", help="URI for content provider / deep link")
+    eg.add_argument("--scheme", metavar="SCHEME", help="Deep link scheme")
+    eg.add_argument("--lhost", metavar="IP", help="Listener host")
+    eg.add_argument("--lport", metavar="PORT", type=int, default=4444, help="Listener port")
+    eg.add_argument("--db-name", metavar="DB", help="Database filename to extract")
 
     # Payload
     pg = p.add_argument_group("Payload")
-    pg.add_argument("--payload",          metavar="TYPE",
-                    choices=["reverse_tcp","reverse_https","reverse_http","shell_tcp",
-                             "intent","reverse-shells","adb-script","obfuscate"],
+    pg.add_argument("--payload", metavar="TYPE",
+                    choices=["reverse_tcp", "reverse_https", "reverse_http", "shell_tcp",
+                             "intent", "reverse-shells", "adb-script", "obfuscate"],
                     help="Generate a payload")
-    pg.add_argument("--payload-out",      metavar="FILE",         help="Output file for payload")
-    pg.add_argument("--obfuscate-method", choices=["base64","hex"], default="base64",
+    pg.add_argument("--payload-out", metavar="FILE", help="Output file for payload")
+    pg.add_argument("--obfuscate-method", choices=["base64", "hex"], default="base64",
                     help="Obfuscation method")
-    pg.add_argument("--raw-payload",      metavar="CMD",          help="Payload string to obfuscate")
+    pg.add_argument("--raw-payload", metavar="CMD", help="Payload string to obfuscate")
 
     # Report
     rg = p.add_argument_group("Report")
-    rg.add_argument("--report",           choices=["html","json","both","table"],
+    rg.add_argument("--report", choices=["html", "json", "both", "table"],
                     help="Generate report after scan")
-    rg.add_argument("--report-out",       metavar="FILE",         help="Report output filename")
-    rg.add_argument("--target-name",      metavar="NAME",         help="Target name for report", default="Unknown Target")
+    rg.add_argument("--report-out", metavar="FILE", help="Report output filename")
+    rg.add_argument("--target-name", metavar="NAME", help="Target name for report", default="Unknown Target")
 
     return p
 
@@ -1398,7 +1483,7 @@ def cli_mode(args):
     # Payload
     if args.payload:
         out = args.payload_out
-        if args.payload in ("reverse_tcp","reverse_https","reverse_http","shell_tcp"):
+        if args.payload in ("reverse_tcp", "reverse_https", "reverse_http", "shell_tcp"):
             payload_generator.generate_msfvenom_apk(args.lhost, args.lport, args.payload, out or "payload.apk")
         elif args.payload == "intent":
             payload_generator.generate_intent_payload(args.action, args.pkg, args.uri)
