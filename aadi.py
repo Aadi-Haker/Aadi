@@ -258,6 +258,289 @@ def handle_device_manager():
     adb_manager.device_info(device_id)
 
 
+#Screen Record option
+def screen_record(device_id: str, duration: int = None, output_path: str = None,
+                   live_preview: bool = True, audio_mode: str = "laptop") -> bool:
+    """
+    Record the device screen using scrcpy's built-in --record option (optionally
+    with a live mirror window and audio), or fall back to `adb shell screenrecord`
+    if scrcpy isn't available on PATH.
+
+    audio_mode:
+      - "laptop": default scrcpy behavior, audio forwarded to laptop and included in recording
+      - "device": --no-audio, recording will have no audio track
+      - "both":   --audio-dup, audio duplicated to device speakers AND laptop/recording
+    """
+    if not output_path:
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = f"screen_record_{timestamp}.mp4"
+
+    if shutil.which("scrcpy"):
+        cmd = [
+            "scrcpy",
+            "-s", device_id,
+            "--record", output_path,
+            "--window-title", "Screen Recording",
+        ]
+        if not live_preview:
+            cmd.append("--no-display")
+        if duration:
+            cmd += ["--time-limit", str(duration)]
+
+        if audio_mode == "device":
+            cmd.append("--no-audio")
+            console.print("[cyan]Audio mode: Device only (recording will have no audio track)[/]")
+        elif audio_mode == "both":
+            cmd.append("--audio-dup")
+            console.print("[cyan]Audio mode: Both - audio duplicated to device speakers and the recording[/]")
+        else:
+            console.print("[cyan]Audio mode: Laptop/recording (audio forwarded and included in recording)[/]")
+
+        console.print(f"[cyan]Recording to:[/] {output_path}")
+        console.print("[dim]Close the mirror window (or press Ctrl+C here) to stop recording.[/]"
+                      if live_preview else
+                      "[dim]Recording in background. Press Ctrl+C here to stop.[/]")
+
+        try:
+            proc = subprocess.Popen(cmd)
+            if duration:
+                proc.wait(timeout=duration + 10)
+            else:
+                proc.wait()
+            console.print(f"[bold green]✓ Recording saved:[/] {output_path}")
+            return True
+        except subprocess.TimeoutExpired:
+            proc.terminate()
+            console.print(f"[bold green]✓ Recording saved:[/] {output_path}")
+            return True
+        except KeyboardInterrupt:
+            proc.terminate()
+            console.print(f"\n[bold green]✓ Recording stopped and saved:[/] {output_path}")
+            return True
+        except FileNotFoundError:
+            console.print("[bold red]scrcpy not found.[/]")
+        except OSError as exc:
+            console.print(f"[bold red]Failed to start recording:[/] {exc}")
+        return False
+
+    # Fallback: adb shell screenrecord (no live preview, no audio support, capped at 180s by Android itself)
+    if audio_mode != "laptop":
+        console.print("[yellow]Note: audio options require scrcpy; the screenrecord fallback has no audio.[/]")
+    return _screenrecord_fallback(device_id, duration, output_path)
+
+
+def _screenrecord_fallback(device_id: str, duration: int, local_output_path: str) -> bool:
+    """Fallback screen recording using the on-device `screenrecord` binary via adb shell."""
+    remote_path = "/sdcard/aadi_screenrecord.mp4"
+    cmd = ["shell", "screenrecord"]
+    if duration:
+        cmd += ["--time-limit", str(min(duration, 180))]
+    cmd.append(remote_path)
+
+    console.print("[yellow]scrcpy not found — falling back to on-device screenrecord "
+                  "(max 180s per recording, no live preview, no audio).[/]")
+    console.print("[dim]Recording... press Ctrl+C to stop early.[/]")
+
+    try:
+        adb_manager.run_adb(cmd, device_id)
+    except KeyboardInterrupt:
+        adb_manager.run_adb(["shell", "pkill", "-l", "SIGINT", "screenrecord"], device_id)
+
+    console.print("[cyan]Pulling recording from device...[/]")
+    result = adb_manager.pull_file(device_id, remote_path, local_output_path)
+    if result:
+        console.print(f"[bold green]✓ Recording saved:[/] {local_output_path}")
+        adb_manager.run_adb(["shell", "rm", remote_path], device_id)
+        return True
+    console.print("[red]✗ Failed to pull recording.[/]")
+    return False
+
+
+def handle_screen_record():
+    console.rule("[bold magenta]🎥 Screen Record[/]")
+    device_id = select_device()
+    if not device_id:
+        return
+
+    duration = None
+    if Confirm.ask("[cyan]Set a fixed duration?[/]", default=False):
+        duration = IntPrompt.ask("[cyan]Duration in seconds[/]", default=30)
+
+    output_path = Prompt.ask("[cyan]Output filename (blank for auto-named)[/]", default="")
+    output_path = output_path.strip() or None
+
+    live_preview = True
+    audio_mode = "laptop"
+    if shutil.which("scrcpy"):
+        live_preview = Confirm.ask("[cyan]Show a live mirror window while recording?[/]", default=True)
+        audio_mode = Prompt.ask(
+            "[cyan]Select audio mode[/]",
+            choices=["laptop", "device", "both"],
+            default="laptop"
+        )
+
+    screen_record(device_id, duration=duration, output_path=output_path,
+                  live_preview=live_preview, audio_mode=audio_mode)
+# End screen Record
+
+
+# Camera enable
+def check_scrcpy_camera_support() -> bool:
+    """Check if the installed scrcpy version supports --video-source=camera (webcam capture, scrcpy >= 2.0)."""
+    try:
+        result = subprocess.run(["scrcpy", "--version"], capture_output=True, text=True, timeout=5)
+        out = (result.stdout or "") + (result.stderr or "")
+        match = re.search(r"scrcpy\s+(\d+)\.(\d+)", out)
+        if match:
+            major, minor = int(match.group(1)), int(match.group(2))
+            return (major, minor) >= (2, 0)
+    except Exception:
+        pass
+    return False
+
+
+def list_device_cameras(device_id: str):
+    """List available camera IDs/facings on the device via scrcpy --list-cameras (scrcpy >= 2.2)."""
+    try:
+        result = subprocess.run(
+            ["scrcpy", "-s", device_id, "--list-cameras"],
+            capture_output=True, text=True, timeout=15
+        )
+        return (result.stdout or "") + (result.stderr or "")
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        return f"Error: {e}"
+
+
+def open_remote_camera(device_id: str, camera_facing: str = None, camera_id: str = None) -> bool:
+    """
+    Stream the device's camera (not the screen) to the desktop using scrcpy's
+    webcam/camera-source mode. Requires scrcpy >= 2.0 and, on the device,
+    Android 12+ for full camera source support.
+    """
+    cmd = [
+        "scrcpy",
+        "-s", device_id,
+        "--video-source=camera",
+        "--no-audio",
+        "--window-title", "Remote Camera",
+    ]
+    if camera_id:
+        cmd.append(f"--camera-id={camera_id}")
+    elif camera_facing:
+        cmd.append(f"--camera-facing={camera_facing}")
+
+    try:
+        subprocess.Popen(cmd)
+        console.print("[bold green]Remote Camera stream launched.[/]")
+        return True
+    except FileNotFoundError:
+        console.print("[bold red]scrcpy not found.[/] Install it with: [bold cyan]sudo apt install scrcpy[/]")
+    except OSError as exc:
+        console.print(f"[bold red]Failed to launch Remote Camera:[/] {exc}")
+    return False
+
+
+def capture_camera_photo(device_id: str):
+    """
+    Trigger the device's native camera app (via an explicit IMAGE_CAPTURE intent,
+    which requires the user to tap capture on the device screen — this does not
+    silently take photos) and optionally pull the resulting photo.
+    """
+    console.print("[cyan]Launching the camera app on the device...[/]")
+    console.print("[dim]Mirror the screen first (Remote Screen) if you need to see it to take the shot.[/]")
+    adb_manager.run_adb(
+        ["shell", "am", "start", "-a", "android.media.action.IMAGE_CAPTURE"],
+        device_id
+    )
+
+    if not Confirm.ask("[cyan]Photo taken on the device? Pull the most recent camera photo now?[/]", default=True):
+        return
+
+    remote_dir = "/sdcard/DCIM/Camera"
+    ls_output, _ = adb_manager.run_adb(["shell", "ls", "-t", remote_dir], device_id)
+    if not ls_output:
+        console.print(f"[red]Could not list {remote_dir}. It may not exist on this device.[/]")
+        return
+
+    entries = [line.strip() for line in ls_output.strip().split("\n") if line.strip()]
+    if not entries:
+        console.print("[red]No photo found in the camera folder.[/]")
+        return
+
+    latest = entries[0]
+    remote_path = f"{remote_dir}/{latest}"
+    local_dest = Prompt.ask("[cyan]Local destination path[/]", default=".")
+
+    result = adb_manager.pull_file(device_id, remote_path, local_dest)
+    if result:
+        console.print(f"[green]✓ Photo pulled successfully:[/] {latest}")
+    else:
+        console.print("[red]✗ Failed to pull photo.[/]")
+
+
+def remote_camera_menu():
+    """Remote Camera submenu — live preview via scrcpy, triggered photo capture, and camera listing."""
+    console.rule("[bold magenta]📷 Remote Camera[/]")
+    device_id = select_device()
+    if not device_id:
+        return
+
+    camera_options = [
+        ("1", "🎥", "Live Camera Preview", "Stream device camera to desktop (scrcpy >= 2.0)"),
+        ("2", "📸", "Capture Photo", "Open camera app on device and pull the resulting photo"),
+        ("3", "📋", "List Cameras", "List available camera IDs/facings on the device"),
+        ("0", "↩️", "Back", "Return to Remote Control menu"),
+    ]
+
+    while True:
+        console.print()
+        t = Table(title=f"\n[bold magenta]📷 Remote Camera - {device_id}[/]\n",
+                  box=box.DOUBLE_EDGE, border_style="magenta", header_style="bold cyan")
+        t.add_column("#", style="cyan", width=3)
+        t.add_column("", style="", width=3)
+        t.add_column("Action", style="white", min_width=20)
+        t.add_column("Description", style="dim")
+
+        for num, icon, name, desc in camera_options:
+            t.add_row(num, icon, name, desc)
+
+        console.print(t)
+
+        choice = Prompt.ask("\n[bold cyan]Remote Camera ▶[/]",
+                            choices=[num for num, *_ in camera_options], show_choices=False)
+
+        if choice == "0":
+            return
+
+        if choice == "1":
+            if not check_scrcpy():
+                continue
+            if not check_scrcpy_camera_support():
+                console.print("[yellow]Your scrcpy version may not support camera streaming. "
+                              "Requires scrcpy >= 2.0 (and Android 12+ on the device).[/]")
+                if not Confirm.ask("[cyan]Try anyway?[/]", default=True):
+                    continue
+            facing = Prompt.ask("[cyan]Camera facing[/]",
+                                choices=["back", "front", "external", "any"], default="back")
+            open_remote_camera(device_id, camera_facing=None if facing == "any" else facing)
+
+        elif choice == "2":
+            capture_camera_photo(device_id)
+
+        elif choice == "3":
+            if not check_scrcpy():
+                continue
+            out = list_device_cameras(device_id)
+            if out and out.strip():
+                console.print(out)
+            else:
+                console.print("[yellow]Could not list cameras (requires scrcpy >= 2.2).[/]")
+# Camera option closed
+
+
 def file_explorer():
     """Browse and manage files on the Android device."""
     console.rule("[bold magenta]📁 File Explorer[/]")
@@ -438,7 +721,7 @@ def file_explorer():
             
             adb_manager.run_adb(["shell", "mkdir", "-p", new_dir_path], device_id)
             console.print(f"[green]✓ Directory {dir_name} created.[/]")
-
+# End here File explorer
 
 def handle_apk_analyzer():
     console.rule("[bold magenta]🔎 APK Static Analyzer[/]")
@@ -1125,7 +1408,7 @@ def handle_remote_control():
             continue
 
         if choice == "3":
-            console.print("[yellow]Remote Camera - Coming soon![/]")
+            remote_camera_menu()
             continue
 
         if choice == "4":
@@ -1133,7 +1416,7 @@ def handle_remote_control():
             continue
 
         if choice == "5":
-            console.print("[yellow]Screen Record - Coming soon![/]")
+            handle_screen_record()
             continue
 
         if choice == "6":
