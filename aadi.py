@@ -258,6 +258,188 @@ def handle_device_manager():
     adb_manager.device_info(device_id)
 
 
+def file_explorer():
+    """Browse and manage files on the Android device."""
+    console.rule("[bold magenta]📁 File Explorer[/]")
+    device_id = select_device()
+    if not device_id:
+        return
+
+    # Start at a common location
+    current_path = "/sdcard"
+    path_history = [current_path]
+
+    while True:
+        console.clear()
+        console.print(f"[bold magenta]📁 File Explorer - {device_id}[/]\n")
+        console.print(f"[cyan]Current Path:[/] {current_path}\n")
+
+        # List directory contents
+        ls_output, _ = adb_manager.run_adb(["shell", "ls", "-la", current_path], device_id)
+        
+        if not ls_output:
+            console.print("[red]Failed to list directory. Path may not exist.[/]")
+            if Prompt.ask("[cyan]Go back?[/]", choices=["y", "n"], default="y") == "y":
+                if len(path_history) > 1:
+                    path_history.pop()
+                    current_path = path_history[-1]
+                else:
+                    current_path = "/"
+                    path_history = [current_path]
+            continue
+
+        # Parse and display files
+        lines = ls_output.strip().split('\n')
+        files = []
+        directories = []
+
+        for line in lines[1:]:  # Skip first line (total)
+            if not line.strip():
+                continue
+            
+            parts = line.split()
+            if len(parts) >= 8:
+                permissions = parts[0]
+                name = ' '.join(parts[8:])
+                
+                if permissions.startswith('d'):
+                    directories.append((name, permissions))
+                elif permissions.startswith('-'):
+                    size = parts[4] if len(parts) > 4 else "0"
+                    files.append((name, permissions, size))
+
+        # Display directories
+        if directories:
+            console.print("[bold cyan]Directories:[/]")
+            for name, perms in directories:
+                icon = "📁" if name != ".." else "⬆️"
+                console.print(f"  {icon} [white]{name}[/] [dim]({perms})[/]")
+
+        # Display files
+        if files:
+            console.print("\n[bold cyan]Files:[/]")
+            for name, perms, size in files:
+                icon = "📄"
+                console.print(f"  {icon} [white]{name}[/] [dim]({size} bytes)[/]")
+
+        # Navigation options
+        console.print("\n[bold cyan]Options:[/]")
+        console.print("  [cyan]1.[/] Navigate to directory (type name)")
+        console.print("  [cyan]2.[/] Go up one directory (..)")
+        console.print("  [cyan]3.[/] Go to root (/)")
+        console.print("  [cyan]4.[/] Go to specific path")
+        console.print("  [cyan]5.[/] Pull file from device")
+        console.print("  [cyan]6.[/] Push file to device")
+        console.print("  [cyan]7.[/] Delete file/directory")
+        console.print("  [cyan]8.[/] Create new directory")
+        console.print("  [cyan]0.[/] Back to Remote Control menu")
+
+        choice = Prompt.ask("\n[bold cyan]Action ▶[/]", 
+                           choices=["1", "2", "3", "4", "5", "6", "7", "8", "0"],
+                           show_choices=False)
+
+        if choice == "0":
+            return
+
+        elif choice == "1":
+            # Navigate to directory
+            target = Prompt.ask("[cyan]Enter directory name[/]")
+            if target == "..":
+                if len(path_history) > 1:
+                    path_history.pop()
+                    current_path = path_history[-1]
+            else:
+                new_path = f"{current_path}/{target}" if current_path != "/" else f"/{target}"
+                # Check if directory exists
+                check_output, _ = adb_manager.run_adb(["shell", "test", "-d", new_path], device_id)
+                if check_output is None:  # test command returns 0 on success, None on failure
+                    path_history.append(new_path)
+                    current_path = new_path
+                else:
+                    console.print(f"[red]Directory '{target}' not found.[/]")
+
+        elif choice == "2":
+            # Go up
+            if len(path_history) > 1:
+                path_history.pop()
+                current_path = path_history[-1]
+            else:
+                console.print("[yellow]Already at root or top of history.[/]")
+
+        elif choice == "3":
+            # Go to root
+            current_path = "/"
+            path_history = [current_path]
+
+        elif choice == "4":
+            # Go to specific path
+            target_path = Prompt.ask("[cyan]Enter full path[/]")
+            check_output, _ = adb_manager.run_adb(["shell", "test", "-d", target_path], device_id)
+            if check_output is None:
+                path_history.append(target_path)
+                current_path = target_path
+            else:
+                console.print(f"[red]Path '{target_path}' not found.[/]")
+
+        elif choice == "5":
+            # Pull file
+            file_name = Prompt.ask("[cyan]Enter file name to pull[/]")
+            remote_path = f"{current_path}/{file_name}" if current_path != "/" else f"/{file_name}"
+            local_dest = Prompt.ask("[cyan]Local destination path[/]", default=".")
+            
+            console.print(f"[cyan]Pulling {file_name} from device...[/]")
+            result = adb_manager.pull_file(device_id, remote_path, local_dest)
+            if result:
+                console.print(f"[green]✓ File pulled successfully to:[/] {local_dest}")
+            else:
+                console.print("[red]✗ Failed to pull file.[/]")
+
+        elif choice == "6":
+            # Push file
+            local_file = Prompt.ask("[cyan]Enter local file path[/]")
+            if not os.path.exists(local_file):
+                console.print("[red]Local file not found.[/]")
+                continue
+            
+            file_name = os.path.basename(local_file)
+            remote_dest = Prompt.ask("[cyan]Remote destination (directory or full path)[/]", 
+                                    default=current_path)
+            
+            console.print(f"[cyan]Pushing {file_name} to device...[/]")
+            result = adb_manager.push_file(device_id, local_file, remote_dest)
+            if result:
+                console.print(f"[green]✓ File pushed successfully to:[/] {remote_dest}")
+            else:
+                console.print("[red]✗ Failed to push file.[/]")
+
+        elif choice == "7":
+            # Delete file/directory
+            target_name = Prompt.ask("[cyan]Enter file/directory name to delete[/]")
+            target_path = f"{current_path}/{target_name}" if current_path != "/" else f"/{target_name}"
+            
+            if not Confirm.ask(f"[red]Are you sure you want to delete {target_name}?[/]", default=False):
+                continue
+            
+            # Check if it's a directory
+            check_dir, _ = adb_manager.run_adb(["shell", "test", "-d", target_path], device_id)
+            if check_dir is None:
+                # It's a directory
+                adb_manager.run_adb(["shell", "rm", "-rf", target_path], device_id)
+                console.print(f"[green]✓ Directory {target_name} deleted.[/]")
+            else:
+                # It's a file
+                adb_manager.run_adb(["shell", "rm", target_path], device_id)
+                console.print(f"[green]✓ File {target_name} deleted.[/]")
+
+        elif choice == "8":
+            # Create directory
+            dir_name = Prompt.ask("[cyan]Enter new directory name[/]")
+            new_dir_path = f"{current_path}/{dir_name}" if current_path != "/" else f"/{dir_name}"
+            
+            adb_manager.run_adb(["shell", "mkdir", "-p", new_dir_path], device_id)
+            console.print(f"[green]✓ Directory {dir_name} created.[/]")
+
+
 def handle_apk_analyzer():
     console.rule("[bold magenta]🔎 APK Static Analyzer[/]")
     apk_path = Prompt.ask("[cyan]APK file path[/]")
@@ -939,7 +1121,7 @@ def handle_remote_control():
             continue
 
         if choice == "2":
-            console.print("[yellow]File Explorer - Coming soon![/]")
+            file_explorer()
             continue
 
         if choice == "3":
