@@ -72,6 +72,7 @@ def get_banner_status():
         status_color = "green" if device_count > 0 else "red"
         device_text = f"[{status_color}]{device_count} Connected[/]"
 
+        # Check for wireless connections
         wireless_count = 0
         for device in devices:
             if ":" in device.get("serial", ""):
@@ -97,12 +98,14 @@ def animate_glitch_banner():
     from rich.markup import escape
     lines = BANNER_ART.strip("\n").split("\n")
 
+    # Glitch phase
     chars = "01$#!@%^&*()_+=-[]{}|;:,.<>?/"
     for _ in range(12):
         glitch_lines = []
         for line in lines:
             glitch_line = "".join(random.choice(chars) if c != " " else " " for c in line)
             color = random.choice(BANNER_LINES_GRADIENT)
+            # Escape the glitch line to prevent MarkupError
             glitch_lines.append(f"[bold {color}]{escape(glitch_line)}[/]")
 
         console.clear()
@@ -110,6 +113,7 @@ def animate_glitch_banner():
             console.print(Align.center(gl))
         time.sleep(0.06)
 
+    # Settling phase (line by line reveal)
     console.clear()
     for i, line in enumerate(lines):
         color = BANNER_LINES_GRADIENT[i % len(BANNER_LINES_GRADIENT)]
@@ -121,10 +125,12 @@ def print_banner():
     """Print the animated Aadi banner with live status."""
     animate_glitch_banner()
 
+    # Tagline
     tagline = Text("◈ ADVANCED ANDROID PENTESTING FRAMEWORK ◈", style="bold italic bright_magenta")
     console.print(Align.center(tagline))
     console.print()
 
+    # Status Panel
     status_text = get_banner_status()
     console.print(Align.center(Panel(
         status_text,
@@ -159,8 +165,7 @@ MENU_OPTIONS = [
     ("15", "💻", "Interactive ADB Shell", "Drop into live ADB shell"),
     ("16", "🧰", "Remote Control", "Remote screen, file explorer, camera and device control tools"),
     ("17", "🔄", "Quick WiFi Connect", "Connect to previously saved WiFi devices"),
-    ("18", "🌍", "Remote Network Setup", "Control device from a different WiFi/network via Tailscale"),
-    ("19", "❔", "About", "About AADI"),
+    ("18", "❔", "About", "About AADI"),
     ("0", "🚪", "Exit", "Exit AADI"),
 ]
 
@@ -240,128 +245,9 @@ def select_device() -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  SCRCPY LATENCY PROFILES  (video/audio lag fix)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-LATENCY_PROFILES = {
-    "turbo": {
-        "label": "Turbo (maximum speed — auto-picked for WiFi/wireless)",
-        "video_bitrate": "1M",
-        "max_size": "400",
-        "max_fps": "20",
-        "video_buffer_ms": "0",
-        "audio_buffer_ms": "0",
-        "audio_codec": "opus",
-    },
-    "low": {
-        "label": "Low Latency (auto-picked for USB)",
-        "video_bitrate": "2M",
-        "max_size": "600",
-        "max_fps": "25",
-        "video_buffer_ms": "0",
-        "audio_buffer_ms": "0",
-        "audio_codec": "opus",
-    },
-    "balanced": {
-        "label": "Balanced (moderate delay, better image)",
-        "video_bitrate": "8M",
-        "max_size": "1080",
-        "max_fps": "60",
-        "video_buffer_ms": "50",
-        "audio_buffer_ms": "50",
-        "audio_codec": "opus",
-    },
-    "quality": {
-        "label": "Quality (best image, highest delay)",
-        "video_bitrate": "16M",
-        "max_size": None,
-        "max_fps": "60",
-        "video_buffer_ms": "150",
-        "audio_buffer_ms": "120",
-        "audio_codec": "opus",
-    },
-}
-
-
-def _scrcpy_help_text() -> str:
-    try:
-        result = subprocess.run(["scrcpy", "--help"], capture_output=True, text=True, timeout=5)
-        return (result.stdout or "") + (result.stderr or "")
-    except Exception:
-        return ""
-
-
-def auto_pick_latency_profile(device_id: str) -> str:
-    """Pick the most aggressive sensible profile automatically: 'turbo' over WiFi
-    (bandwidth is almost always the bottleneck there), 'low' over USB."""
-    return "turbo" if ":" in device_id else "low"
-
-
-def build_latency_flags(profile_name: str) -> list:
-    """Build scrcpy flags for a latency profile, skipping flags this scrcpy build lacks."""
-    profile = LATENCY_PROFILES.get(profile_name, LATENCY_PROFILES["low"])
-    help_text = _scrcpy_help_text()
-    flags = []
-
-    if "--video-bit-rate" in help_text:
-        flags.append(f"--video-bit-rate={profile['video_bitrate']}")
-    else:
-        flags += ["-b", profile["video_bitrate"]]
-
-    if profile["max_size"]:
-        flags.append(f"--max-size={profile['max_size']}")
-
-    if "--max-fps" in help_text:
-        flags.append(f"--max-fps={profile['max_fps']}")
-
-    if "--video-buffer" in help_text:
-        flags.append(f"--video-buffer={profile['video_buffer_ms']}")
-    if "--audio-buffer" in help_text:
-        flags.append(f"--audio-buffer={profile['audio_buffer_ms']}")
-
-    if "--audio-codec" in help_text:
-        flags.append(f"--audio-codec={profile['audio_codec']}")
-
-    # Force hardware-accelerated rendering where scrcpy supports selecting it —
-    # software rendering fallback is a common cause of "just feels slow" on laptops.
-    if "--render-driver" in help_text:
-        flags.append("--render-driver=opengl")
-
-    return flags
-
-
-def choose_latency_profile(device_id: str = None, allow_customize: bool = False) -> str:
-    """Auto-pick the fastest sensible profile based on connection type and use it
-    immediately — no prompt, no interruption. Pass allow_customize=True from a menu
-    that explicitly wants to offer switching profiles."""
-    default_profile = auto_pick_latency_profile(device_id) if device_id else "turbo"
-    p = LATENCY_PROFILES[default_profile]
-    console.print(f"[cyan]Latency profile:[/] {default_profile} — {p['label']}")
-
-    if allow_customize and Confirm.ask("[cyan]Customize latency profile instead?[/]", default=False):
-        console.print("\n[bold cyan]Latency profiles:[/]")
-        for key, prof in LATENCY_PROFILES.items():
-            console.print(f"  [cyan]{key:9s}[/] - {prof['label']}")
-        return Prompt.ask(
-            "[cyan]Latency profile[/]",
-            choices=list(LATENCY_PROFILES.keys()),
-            default=default_profile
-        )
-
-    return default_profile
-
-
-def check_scrcpy() -> bool:
-    """Check whether scrcpy is available on PATH."""
-    if shutil.which("scrcpy"):
-        return True
-    console.print("[bold red]scrcpy not found.[/] Install it with: [bold cyan]sudo apt install scrcpy[/]")
-    return False
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 #  MODULE HANDLERS
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def handle_device_manager():
     console.rule("[bold magenta]📱 Device Manager[/]")
@@ -371,6 +257,471 @@ def handle_device_manager():
         return
     adb_manager.device_info(device_id)
 
+
+#Screen Record option
+def screen_record(device_id: str, duration: int = None, output_path: str = None,
+                   live_preview: bool = True, audio_mode: str = "laptop") -> bool:
+    """
+    Record the device screen using scrcpy's built-in --record option (optionally
+    with a live mirror window and audio), or fall back to `adb shell screenrecord`
+    if scrcpy isn't available on PATH.
+
+    audio_mode:
+      - "laptop": default scrcpy behavior, audio forwarded to laptop and included in recording
+      - "device": --no-audio, recording will have no audio track
+      - "both":   --audio-dup, audio duplicated to device speakers AND laptop/recording
+    """
+    if not output_path:
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = f"screen_record_{timestamp}.mp4"
+
+    if shutil.which("scrcpy"):
+        cmd = [
+            "scrcpy",
+            "-s", device_id,
+            "--record", output_path,
+            "--window-title", "Screen Recording",
+        ]
+        if not live_preview:
+            cmd.append("--no-display")
+        if duration:
+            cmd += ["--time-limit", str(duration)]
+
+        if audio_mode == "device":
+            cmd.append("--no-audio")
+            console.print("[cyan]Audio mode: Device only (recording will have no audio track)[/]")
+        elif audio_mode == "both":
+            cmd.append("--audio-dup")
+            console.print("[cyan]Audio mode: Both - audio duplicated to device speakers and the recording[/]")
+        else:
+            console.print("[cyan]Audio mode: Laptop/recording (audio forwarded and included in recording)[/]")
+
+        console.print(f"[cyan]Recording to:[/] {output_path}")
+        console.print("[dim]Close the mirror window (or press Ctrl+C here) to stop recording.[/]"
+                      if live_preview else
+                      "[dim]Recording in background. Press Ctrl+C here to stop.[/]")
+
+        try:
+            proc = subprocess.Popen(cmd)
+            if duration:
+                proc.wait(timeout=duration + 10)
+            else:
+                proc.wait()
+            console.print(f"[bold green]✓ Recording saved:[/] {output_path}")
+            return True
+        except subprocess.TimeoutExpired:
+            proc.terminate()
+            console.print(f"[bold green]✓ Recording saved:[/] {output_path}")
+            return True
+        except KeyboardInterrupt:
+            proc.terminate()
+            console.print(f"\n[bold green]✓ Recording stopped and saved:[/] {output_path}")
+            return True
+        except FileNotFoundError:
+            console.print("[bold red]scrcpy not found.[/]")
+        except OSError as exc:
+            console.print(f"[bold red]Failed to start recording:[/] {exc}")
+        return False
+
+    # Fallback: adb shell screenrecord (no live preview, no audio support, capped at 180s by Android itself)
+    if audio_mode != "laptop":
+        console.print("[yellow]Note: audio options require scrcpy; the screenrecord fallback has no audio.[/]")
+    return _screenrecord_fallback(device_id, duration, output_path)
+
+
+def _screenrecord_fallback(device_id: str, duration: int, local_output_path: str) -> bool:
+    """Fallback screen recording using the on-device `screenrecord` binary via adb shell."""
+    remote_path = "/sdcard/aadi_screenrecord.mp4"
+    cmd = ["shell", "screenrecord"]
+    if duration:
+        cmd += ["--time-limit", str(min(duration, 180))]
+    cmd.append(remote_path)
+
+    console.print("[yellow]scrcpy not found — falling back to on-device screenrecord "
+                  "(max 180s per recording, no live preview, no audio).[/]")
+    console.print("[dim]Recording... press Ctrl+C to stop early.[/]")
+
+    try:
+        adb_manager.run_adb(cmd, device_id)
+    except KeyboardInterrupt:
+        adb_manager.run_adb(["shell", "pkill", "-l", "SIGINT", "screenrecord"], device_id)
+
+    console.print("[cyan]Pulling recording from device...[/]")
+    result = adb_manager.pull_file(device_id, remote_path, local_output_path)
+    if result:
+        console.print(f"[bold green]✓ Recording saved:[/] {local_output_path}")
+        adb_manager.run_adb(["shell", "rm", remote_path], device_id)
+        return True
+    console.print("[red]✗ Failed to pull recording.[/]")
+    return False
+
+
+def handle_screen_record():
+    console.rule("[bold magenta]🎥 Screen Record[/]")
+    device_id = select_device()
+    if not device_id:
+        return
+
+    duration = None
+    if Confirm.ask("[cyan]Set a fixed duration?[/]", default=False):
+        duration = IntPrompt.ask("[cyan]Duration in seconds[/]", default=30)
+
+    output_path = Prompt.ask("[cyan]Output filename (blank for auto-named)[/]", default="")
+    output_path = output_path.strip() or None
+
+    live_preview = True
+    audio_mode = "laptop"
+    if shutil.which("scrcpy"):
+        live_preview = Confirm.ask("[cyan]Show a live mirror window while recording?[/]", default=True)
+        audio_mode = Prompt.ask(
+            "[cyan]Select audio mode[/]",
+            choices=["laptop", "device", "both"],
+            default="laptop"
+        )
+
+    screen_record(device_id, duration=duration, output_path=output_path,
+                  live_preview=live_preview, audio_mode=audio_mode)
+# End screen Record
+
+
+# Camera enable
+def check_scrcpy_camera_support() -> bool:
+    """Check if the installed scrcpy version supports --video-source=camera (webcam capture, scrcpy >= 2.0)."""
+    try:
+        result = subprocess.run(["scrcpy", "--version"], capture_output=True, text=True, timeout=5)
+        out = (result.stdout or "") + (result.stderr or "")
+        match = re.search(r"scrcpy\s+(\d+)\.(\d+)", out)
+        if match:
+            major, minor = int(match.group(1)), int(match.group(2))
+            return (major, minor) >= (2, 0)
+    except Exception:
+        pass
+    return False
+
+
+def list_device_cameras(device_id: str):
+    """List available camera IDs/facings on the device via scrcpy --list-cameras (scrcpy >= 2.2)."""
+    try:
+        result = subprocess.run(
+            ["scrcpy", "-s", device_id, "--list-cameras"],
+            capture_output=True, text=True, timeout=15
+        )
+        return (result.stdout or "") + (result.stderr or "")
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        return f"Error: {e}"
+
+
+def open_remote_camera(device_id: str, camera_facing: str = None, camera_id: str = None) -> bool:
+    """
+    Stream the device's camera (not the screen) to the desktop using scrcpy's
+    webcam/camera-source mode. Requires scrcpy >= 2.0 and, on the device,
+    Android 12+ for full camera source support.
+    """
+    cmd = [
+        "scrcpy",
+        "-s", device_id,
+        "--video-source=camera",
+        "--no-audio",
+        "--window-title", "Remote Camera",
+    ]
+    if camera_id:
+        cmd.append(f"--camera-id={camera_id}")
+    elif camera_facing:
+        cmd.append(f"--camera-facing={camera_facing}")
+
+    try:
+        subprocess.Popen(cmd)
+        console.print("[bold green]Remote Camera stream launched.[/]")
+        return True
+    except FileNotFoundError:
+        console.print("[bold red]scrcpy not found.[/] Install it with: [bold cyan]sudo apt install scrcpy[/]")
+    except OSError as exc:
+        console.print(f"[bold red]Failed to launch Remote Camera:[/] {exc}")
+    return False
+
+
+def capture_camera_photo(device_id: str):
+    """
+    Trigger the device's native camera app (via an explicit IMAGE_CAPTURE intent,
+    which requires the user to tap capture on the device screen — this does not
+    silently take photos) and optionally pull the resulting photo.
+    """
+    console.print("[cyan]Launching the camera app on the device...[/]")
+    console.print("[dim]Mirror the screen first (Remote Screen) if you need to see it to take the shot.[/]")
+    adb_manager.run_adb(
+        ["shell", "am", "start", "-a", "android.media.action.IMAGE_CAPTURE"],
+        device_id
+    )
+
+    if not Confirm.ask("[cyan]Photo taken on the device? Pull the most recent camera photo now?[/]", default=True):
+        return
+
+    remote_dir = "/sdcard/DCIM/Camera"
+    ls_output, _ = adb_manager.run_adb(["shell", "ls", "-t", remote_dir], device_id)
+    if not ls_output:
+        console.print(f"[red]Could not list {remote_dir}. It may not exist on this device.[/]")
+        return
+
+    entries = [line.strip() for line in ls_output.strip().split("\n") if line.strip()]
+    if not entries:
+        console.print("[red]No photo found in the camera folder.[/]")
+        return
+
+    latest = entries[0]
+    remote_path = f"{remote_dir}/{latest}"
+    local_dest = Prompt.ask("[cyan]Local destination path[/]", default=".")
+
+    result = adb_manager.pull_file(device_id, remote_path, local_dest)
+    if result:
+        console.print(f"[green]✓ Photo pulled successfully:[/] {latest}")
+    else:
+        console.print("[red]✗ Failed to pull photo.[/]")
+
+
+def remote_camera_menu():
+    """Remote Camera submenu — live preview via scrcpy, triggered photo capture, and camera listing."""
+    console.rule("[bold magenta]📷 Remote Camera[/]")
+    device_id = select_device()
+    if not device_id:
+        return
+
+    camera_options = [
+        ("1", "🎥", "Live Camera Preview", "Stream device camera to desktop (scrcpy >= 2.0)"),
+        ("2", "📸", "Capture Photo", "Open camera app on device and pull the resulting photo"),
+        ("3", "📋", "List Cameras", "List available camera IDs/facings on the device"),
+        ("0", "↩️", "Back", "Return to Remote Control menu"),
+    ]
+
+    while True:
+        console.print()
+        t = Table(title=f"\n[bold magenta]📷 Remote Camera - {device_id}[/]\n",
+                  box=box.DOUBLE_EDGE, border_style="magenta", header_style="bold cyan")
+        t.add_column("#", style="cyan", width=3)
+        t.add_column("", style="", width=3)
+        t.add_column("Action", style="white", min_width=20)
+        t.add_column("Description", style="dim")
+
+        for num, icon, name, desc in camera_options:
+            t.add_row(num, icon, name, desc)
+
+        console.print(t)
+
+        choice = Prompt.ask("\n[bold cyan]Remote Camera ▶[/]",
+                            choices=[num for num, *_ in camera_options], show_choices=False)
+
+        if choice == "0":
+            return
+
+        if choice == "1":
+            if not check_scrcpy():
+                continue
+            if not check_scrcpy_camera_support():
+                console.print("[yellow]Your scrcpy version may not support camera streaming. "
+                              "Requires scrcpy >= 2.0 (and Android 12+ on the device).[/]")
+                if not Confirm.ask("[cyan]Try anyway?[/]", default=True):
+                    continue
+            facing = Prompt.ask("[cyan]Camera facing[/]",
+                                choices=["back", "front", "external", "any"], default="back")
+            open_remote_camera(device_id, camera_facing=None if facing == "any" else facing)
+
+        elif choice == "2":
+            capture_camera_photo(device_id)
+
+        elif choice == "3":
+            if not check_scrcpy():
+                continue
+            out = list_device_cameras(device_id)
+            if out and out.strip():
+                console.print(out)
+            else:
+                console.print("[yellow]Could not list cameras (requires scrcpy >= 2.2).[/]")
+# Camera option closed
+
+
+def file_explorer():
+    """Browse and manage files on the Android device."""
+    console.rule("[bold magenta]📁 File Explorer[/]")
+    device_id = select_device()
+    if not device_id:
+        return
+
+    # Start at a common location
+    current_path = "/sdcard"
+    path_history = [current_path]
+
+    while True:
+        console.clear()
+        console.print(f"[bold magenta]📁 File Explorer - {device_id}[/]\n")
+        console.print(f"[cyan]Current Path:[/] {current_path}\n")
+
+        # List directory contents
+        ls_output, _ = adb_manager.run_adb(["shell", "ls", "-la", current_path], device_id)
+        
+        if not ls_output:
+            console.print("[red]Failed to list directory. Path may not exist.[/]")
+            if Prompt.ask("[cyan]Go back?[/]", choices=["y", "n"], default="y") == "y":
+                if len(path_history) > 1:
+                    path_history.pop()
+                    current_path = path_history[-1]
+                else:
+                    current_path = "/"
+                    path_history = [current_path]
+            continue
+
+        # Parse and display files
+        lines = ls_output.strip().split('\n')
+        files = []
+        directories = []
+
+        for line in lines[1:]:  # Skip first line (total)
+            if not line.strip():
+                continue
+            
+            parts = line.split()
+            if len(parts) >= 8:
+                permissions = parts[0]
+                name = ' '.join(parts[8:])
+                
+                if permissions.startswith('d'):
+                    directories.append((name, permissions))
+                elif permissions.startswith('-'):
+                    size = parts[4] if len(parts) > 4 else "0"
+                    files.append((name, permissions, size))
+
+        # Display directories
+        if directories:
+            console.print("[bold cyan]Directories:[/]")
+            for name, perms in directories:
+                icon = "📁" if name != ".." else "⬆️"
+                console.print(f"  {icon} [white]{name}[/] [dim]({perms})[/]")
+
+        # Display files
+        if files:
+            console.print("\n[bold cyan]Files:[/]")
+            for name, perms, size in files:
+                icon = "📄"
+                console.print(f"  {icon} [white]{name}[/] [dim]({size} bytes)[/]")
+
+        # Navigation options
+        console.print("\n[bold cyan]Options:[/]")
+        console.print("  [cyan]1.[/] Navigate to directory (type name)")
+        console.print("  [cyan]2.[/] Go up one directory (..)")
+        console.print("  [cyan]3.[/] Go to root (/)")
+        console.print("  [cyan]4.[/] Go to specific path")
+        console.print("  [cyan]5.[/] Pull file from device")
+        console.print("  [cyan]6.[/] Push file to device")
+        console.print("  [cyan]7.[/] Delete file/directory")
+        console.print("  [cyan]8.[/] Create new directory")
+        console.print("  [cyan]0.[/] Back to Remote Control menu")
+
+        choice = Prompt.ask("\n[bold cyan]Action ▶[/]", 
+                           choices=["1", "2", "3", "4", "5", "6", "7", "8", "0"],
+                           show_choices=False)
+
+        if choice == "0":
+            return
+
+        elif choice == "1":
+            # Navigate to directory
+            target = Prompt.ask("[cyan]Enter directory name[/]")
+            if target == "..":
+                if len(path_history) > 1:
+                    path_history.pop()
+                    current_path = path_history[-1]
+            else:
+                new_path = f"{current_path}/{target}" if current_path != "/" else f"/{target}"
+                # Check if directory exists
+                check_output, _ = adb_manager.run_adb(["shell", "test", "-d", new_path], device_id)
+                if check_output is None:  # test command returns 0 on success, None on failure
+                    path_history.append(new_path)
+                    current_path = new_path
+                else:
+                    console.print(f"[red]Directory '{target}' not found.[/]")
+
+        elif choice == "2":
+            # Go up
+            if len(path_history) > 1:
+                path_history.pop()
+                current_path = path_history[-1]
+            else:
+                console.print("[yellow]Already at root or top of history.[/]")
+
+        elif choice == "3":
+            # Go to root
+            current_path = "/"
+            path_history = [current_path]
+
+        elif choice == "4":
+            # Go to specific path
+            target_path = Prompt.ask("[cyan]Enter full path[/]")
+            check_output, _ = adb_manager.run_adb(["shell", "test", "-d", target_path], device_id)
+            if check_output is None:
+                path_history.append(target_path)
+                current_path = target_path
+            else:
+                console.print(f"[red]Path '{target_path}' not found.[/]")
+
+        elif choice == "5":
+            # Pull file
+            file_name = Prompt.ask("[cyan]Enter file name to pull[/]")
+            remote_path = f"{current_path}/{file_name}" if current_path != "/" else f"/{file_name}"
+            local_dest = Prompt.ask("[cyan]Local destination path[/]", default=".")
+            
+            console.print(f"[cyan]Pulling {file_name} from device...[/]")
+            result = adb_manager.pull_file(device_id, remote_path, local_dest)
+            if result:
+                console.print(f"[green]✓ File pulled successfully to:[/] {local_dest}")
+            else:
+                console.print("[red]✗ Failed to pull file.[/]")
+
+        elif choice == "6":
+            # Push file
+            local_file = Prompt.ask("[cyan]Enter local file path[/]")
+            if not os.path.exists(local_file):
+                console.print("[red]Local file not found.[/]")
+                continue
+            
+            file_name = os.path.basename(local_file)
+            remote_dest = Prompt.ask("[cyan]Remote destination (directory or full path)[/]", 
+                                    default=current_path)
+            
+            console.print(f"[cyan]Pushing {file_name} to device...[/]")
+            result = adb_manager.push_file(device_id, local_file, remote_dest)
+            if result:
+                console.print(f"[green]✓ File pushed successfully to:[/] {remote_dest}")
+            else:
+                console.print("[red]✗ Failed to push file.[/]")
+
+        elif choice == "7":
+            # Delete file/directory
+            target_name = Prompt.ask("[cyan]Enter file/directory name to delete[/]")
+            target_path = f"{current_path}/{target_name}" if current_path != "/" else f"/{target_name}"
+            
+            if not Confirm.ask(f"[red]Are you sure you want to delete {target_name}?[/]", default=False):
+                continue
+            
+            # Check if it's a directory
+            check_dir, _ = adb_manager.run_adb(["shell", "test", "-d", target_path], device_id)
+            if check_dir is None:
+                # It's a directory
+                adb_manager.run_adb(["shell", "rm", "-rf", target_path], device_id)
+                console.print(f"[green]✓ Directory {target_name} deleted.[/]")
+            else:
+                # It's a file
+                adb_manager.run_adb(["shell", "rm", target_path], device_id)
+                console.print(f"[green]✓ File {target_name} deleted.[/]")
+
+        elif choice == "8":
+            # Create directory
+            dir_name = Prompt.ask("[cyan]Enter new directory name[/]")
+            new_dir_path = f"{current_path}/{dir_name}" if current_path != "/" else f"/{dir_name}"
+            
+            adb_manager.run_adb(["shell", "mkdir", "-p", new_dir_path], device_id)
+            console.print(f"[green]✓ Directory {dir_name} created.[/]")
+# End here File explorer
 
 def handle_apk_analyzer():
     console.rule("[bold magenta]🔎 APK Static Analyzer[/]")
@@ -520,6 +871,7 @@ def handle_report_generator():
     console.rule("[bold magenta]📋 Report Generator[/]")
     target = Prompt.ask("[cyan]Target description (app/device name)[/]", default="Unknown Target")
 
+    # Build report from session
     data = _get_session()
     data["target"] = target
 
@@ -553,9 +905,11 @@ def wireless_connection_wizard():
     """Guide user through setting up wireless ADB connection."""
     console.rule("[bold magenta]📡 Wireless Connection Wizard[/]")
 
+    # Check for existing saved WiFi devices first
     wifi_file = os.path.join(os.path.dirname(__file__), "wifi_devices.json")
     if os.path.exists(wifi_file):
         try:
+            import json
             with open(wifi_file, "r") as f:
                 wifi_data = json.load(f)
             if wifi_data:
@@ -581,6 +935,7 @@ def wireless_connection_wizard():
         except Exception as e:
             console.print(f"[yellow]Could not read saved devices: {e}[/]")
 
+        # Continue with the normal wizard for new setup
     wizard = Panel(
         "[bold cyan]📡 Wireless ADB Setup Guide[/]\n\n"
         "[bold white]Step 1: Initial USB Connection[/]\n"
@@ -610,113 +965,6 @@ def wireless_connection_wizard():
         console.print("[cyan]Please connect your device via USB first (one-time requirement)...[/]")
         time.sleep(2)
         handle_auto_adb_wifi()
-
-
-# ── Remote Network Setup (different WiFi, via Tailscale) ──────────────────
-
-def check_tailscale_installed() -> bool:
-    return shutil.which("tailscale") is not None
-
-
-def tailscale_status() -> str:
-    """Return raw `tailscale status` output, or '' if unavailable/not running."""
-    try:
-        result = subprocess.run(["tailscale", "status"], capture_output=True, text=True, timeout=8)
-        return result.stdout or ""
-    except Exception:
-        return ""
-
-
-def print_tailscale_install_guide():
-    console.print(Panel(
-        "[bold cyan]Cross-Network Remote Control Setup (Tailscale)[/]\n\n"
-        "[bold white]On the phone:[/]\n"
-        "[dim]1. Install 'Tailscale' from the Play Store.[/]\n"
-        "[dim]2. Open it, sign in, toggle the connection on.[/]\n"
-        "[dim]3. Note the phone's Tailscale IP shown in the app (100.x.x.x).[/]\n\n"
-        "[bold white]On this laptop (Linux):[/]\n"
-        "[dim]1. curl -fsSL https://tailscale.com/install.sh | sh[/]\n"
-        "[dim]2. sudo tailscale up[/]\n"
-        "[dim]3. Sign in with the SAME Tailscale account as the phone.[/]\n\n"
-        "[bold yellow]Note:[/] the phone must already trust this laptop's ADB key at least\n"
-        "once via USB or same-WiFi before a Tailscale connection will authorize —\n"
-        "Tailscale only fixes routing, not the ADB pairing itself.\n\n"
-        "[bold white]Why not just port-forward on the router instead?[/]\n"
-        "[dim]That exposes an unauthenticated ADB port to the entire internet — anyone\n"
-        "who scans and finds it gets a shell on the phone. Tailscale keeps the link\n"
-        "private to your own devices, so it's the recommended approach here.[/]",
-        title="[bold]Remote Network Setup[/]",
-        border_style="cyan",
-        padding=(0, 2),
-    ))
-
-
-def remote_network_setup_wizard():
-    """Guide the user through connecting to a device on a different network via Tailscale."""
-    console.rule("[bold magenta]🌍 Remote Network Setup (Different WiFi)[/]")
-
-    if not check_tailscale_installed():
-        print_tailscale_install_guide()
-        if not Confirm.ask("[cyan]Have you installed and signed in to Tailscale on this laptop now?[/]", default=False):
-            console.print("[yellow]Install Tailscale first, then re-run this wizard.[/]")
-            return
-
-    status = tailscale_status()
-    if not status:
-        console.print("[red]Could not read Tailscale status. Is the tailscale daemon running "
-                       "('sudo tailscale up')?[/]")
-        if not Confirm.ask("[cyan]Continue and enter the phone's Tailscale IP manually anyway?[/]", default=True):
-            return
-    else:
-        console.print("[bold cyan]Tailscale devices on your account:[/]")
-        console.print(status)
-
-    ip = Prompt.ask("[cyan]Phone's Tailscale IP (e.g. 100.x.x.x)[/]")
-    port = IntPrompt.ask("[cyan]ADB port[/]", default=5555)
-
-    console.print(f"[cyan]Attempting to connect to {ip}:{port} over Tailscale...[/]")
-    result = adb_manager.connect_wifi(ip, port)
-
-    if result:
-        console.print("[bold green]✓ Connected over Tailscale — different-network remote control is live.[/]")
-        if Confirm.ask("[cyan]Save this device for quick reconnect later?[/]", default=True):
-            _save_remote_device(ip, port)
-    else:
-        console.print("[red]✗ Connection failed.[/]")
-        console.print(Panel(
-            "[white]Common causes:[/]\n"
-            "[dim]• Tailscale isn't connected on one side (check 'tailscale status' on both).[/]\n"
-            "[dim]• ADB WiFi mode isn't enabled on the phone (run 'Auto ADB WiFi Connect' over "
-            "USB or same-WiFi first — that step still needs to happen once).[/]\n"
-            "[dim]• Wrong port — Android resets the WiFi ADB port on reboot; re-check it.[/]\n"
-            "[dim]• Phone hasn't authorized this laptop's ADB key yet (accept the RSA prompt on-device).[/]",
-            border_style="yellow", padding=(0, 2)
-        ))
-
-
-def _save_remote_device(ip: str, port: int):
-    """Save a Tailscale-reachable device to the same wifi_devices.json used by quick_wifi_connect."""
-    wifi_file = os.path.join(os.path.dirname(__file__), "wifi_devices.json")
-    data = {}
-    if os.path.exists(wifi_file):
-        try:
-            with open(wifi_file, "r") as f:
-                data = json.load(f)
-        except Exception:
-            data = {}
-
-    from datetime import datetime
-    device_key = f"{ip}:{port}"
-    data[device_key] = {
-        "ip": ip,
-        "port": port,
-        "last_connected": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "transport": "tailscale",
-    }
-
-    with open(wifi_file, "w") as f:
-        json.dump(data, f, indent=2)
-    console.print("[green]✓ Saved for quick reconnect (via Quick WiFi Connect too).[/]")
 
 
 def handle_auto_adb_wifi():
@@ -790,39 +1038,45 @@ def handle_adb_shell():
     adb_manager.interactive_shell(device_id)
 
 
-# ── Remote Screen (single, latency-tuned version) ──────────────────────────
+def check_scrcpy() -> bool:
+    """Check whether scrcpy is available on PATH."""
+    if shutil.which("scrcpy"):
+        return True
+    console.print("[bold red]scrcpy not found.[/] Install it with: [bold cyan]sudo apt install scrcpy[/]")
+    return False
 
-def open_remote_screen(device_id: str, audio_mode: str = "laptop", latency_profile: str = "low") -> bool:
-    """Launch scrcpy for the selected Android device, with bitrate/buffer/fps tuned
-    for lower video+audio delay, plus audio mode options."""
+
+def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
+    """Launch scrcpy for the selected Android device with audio options."""
     cmd = [
         "scrcpy",
         "-s", device_id,
         "--window-title", "Remote Screen",
+        "--max-size", "900",
     ]
-    cmd += build_latency_flags(latency_profile)
 
+    # Audio mode configuration
     if audio_mode == "device":
         cmd.append("--no-audio")
         console.print("[cyan]Audio mode: Device only (no audio forwarding)[/]")
     elif audio_mode == "laptop":
+        # Default behavior - audio forwarded to laptop
         console.print("[cyan]Audio mode: Laptop only (audio forwarded)[/]")
     elif audio_mode == "both":
-        if "--audio-dup" in _scrcpy_help_text():
-            cmd.append("--audio-dup")
-            console.print("[cyan]Audio mode: Both - Audio duplicated to device and laptop via scrcpy[/]")
-        else:
-            console.print("[yellow]This scrcpy build doesn't support --audio-dup; falling back to laptop-only audio.[/]")
-            console.print("[dim]For simultaneous device+laptop audio, use SoundWire/AudioRelay (see Audio Setup Guide).[/]")
-
-    is_wireless = ":" in device_id
-    if is_wireless:
-        console.print("[yellow]Connected over WiFi — remaining delay is mostly bandwidth/RTT bound. "
-                       "USB or 5GHz WiFi close to the router will always be faster than 2.4GHz/congested WiFi.[/]")
+        # Use scrcpy's built-in audio duplication (works for both USB and WiFi)
+        cmd.append("--audio-dup")
+        console.print("[cyan]Audio mode: Both - Audio duplicated to both device and laptop via scrcpy[/]")
+        console.print("[yellow]Device will play audio locally. For laptop audio, use one of these methods:[/]")
+        console.print("[dim]1. Install SoundWire (Android) + SoundWire Server (PC)[/]")
+        console.print("[dim]2. Use AudioRelay app for audio streaming[/]")
+        console.print("[dim]3. Connect device audio to laptop via audio cable[/]")
+        console.print("[yellow]Audio streaming apps allow you to hear audio on both devices simultaneously.[/]")
+    else:
+        console.print("[yellow]Audio mode: Laptop only (default)[/]")
 
     try:
         subprocess.Popen(cmd)
-        console.print(f"[bold green]Remote Screen launched[/] (profile: {latency_profile}).")
+        console.print("[bold green]Remote Screen launched.[/]")
         return True
     except FileNotFoundError:
         console.print("[bold red]scrcpy not found.[/] Install it with: [bold cyan]sudo apt install scrcpy[/]")
@@ -838,6 +1092,7 @@ def show_wifi_device_info():
     if not device_id:
         return
 
+    # Check if device is connected via WiFi
     is_wireless = ":" in device_id
     connection_type = "[green]WiFi[/]" if is_wireless else "[yellow]USB[/]"
     console.print(f"[cyan]Connection Type:[/] {connection_type}")
@@ -848,11 +1103,13 @@ def show_wifi_device_info():
         console.print(f"[cyan]IP Address:[/] {ip}")
         console.print(f"[cyan]Port:[/] {port}")
 
+        # Get additional network info
         try:
             wifi_info_out, _ = adb_manager.run_adb(["shell", "dumpsys", "wifi"], device_id)
             if wifi_info_info := adb_manager._extract_device_ip(wifi_info_out):
                 console.print(f"[cyan]WiFi IP:[/] {wifi_info_info}")
 
+            # Get signal strength
             signal_out, _ = adb_manager.run_adb(["shell", "dumpsys", "wifi"], device_id)
             if "rssi" in signal_out.lower():
                 console.print("[cyan]Signal Strength:[/] Available in detailed dumpsys output")
@@ -860,6 +1117,7 @@ def show_wifi_device_info():
         except Exception as e:
             console.print(f"[yellow]Could not get detailed WiFi info: {e}[/]")
 
+    # Get device battery and status
     battery_out, _ = adb_manager.run_adb(["shell", "dumpsys", "battery"], device_id)
     if battery_out:
         console.print("[cyan]Battery Status:[/] Available")
@@ -878,23 +1136,28 @@ def monitor_network_traffic():
     console.print("[yellow]Press Ctrl+C to stop monitoring[/]")
 
     try:
+        # Start monitoring network connections
         while True:
             console.clear()
             console.print(f"[bold magenta]📊 Network Traffic Monitor - {device_id}[/]\n")
 
+            # Get current network connections
             netstat_out, _ = adb_manager.run_adb(["shell", "netstat"], device_id)
             if netstat_out:
                 console.print("[bold cyan]Active Network Connections:[/]")
-                console.print(netstat_out[:500])
+                console.print(netstat_out[:500])  # Limit output
 
+            # Get network stats
             net_stats_out, _ = adb_manager.run_adb(["shell", "cat", "/proc/net/dev"], device_id)
             if net_stats_out:
                 console.print("\n[bold cyan]Network Interface Statistics:[/]")
                 console.print(net_stats_out)
 
+            # Get WiFi info
             wifi_out, _ = adb_manager.run_adb(["shell", "dumpsys", "wifi"], device_id)
             if wifi_out and "SSID" in wifi_out:
                 console.print("[bold cyan]Connected WiFi Network:[/]")
+                import re
                 ssid_match = re.search(r'SSID: ([^\s,]+)', wifi_out)
                 if ssid_match:
                     console.print(f"  Network: {ssid_match.group(1)}")
@@ -1050,6 +1313,7 @@ def wifi_analyzer():
 
     console.print("[cyan]Scanning WiFi networks...[/]")
 
+    # Get WiFi scan results
     scan_out, _ = adb_manager.run_adb(["shell", "cmd", "wifi", "list-scan-results"], device_id)
 
     if scan_out:
@@ -1057,28 +1321,33 @@ def wifi_analyzer():
         console.print(scan_out)
     else:
         console.print("[yellow]Could not get WiFi scan results. Trying alternative method...[/]")
+        # Alternative method
         alt_out, _ = adb_manager.run_adb(["shell", "dumpsys", "wifi"], device_id)
         if alt_out:
             console.print("[bold cyan]WiFi Information:[/]")
+            # Extract relevant info
             if "SSID" in alt_out:
                 ssids = re.findall(r'SSID: ([^\s,]+)', alt_out)
                 if ssids:
                     console.print("[cyan]Nearby Networks:[/]")
-                    for ssid in set(ssids[:10]):
+                    for ssid in set(ssids[:10]):  # Show unique SSIDs
                         console.print(f"  • {ssid}")
 
+    # Get current connection info
     current_out, _ = adb_manager.run_adb(["shell", "dumpsys", "wifi"], device_id)
     if current_out:
         ssid_match = re.search(r'SSID: ([^\s,]+)', current_out)
         if ssid_match:
             console.print(f"\n[green]Currently Connected:[/] {ssid_match.group(1)}")
 
+        # Get signal strength
         rssi_match = re.search(r'rssi=(-?\d+)', current_out)
         if rssi_match:
             rssi = int(rssi_match.group(1))
             signal_quality = "Excellent" if rssi > -50 else "Good" if rssi > -60 else "Fair" if rssi > -70 else "Poor"
             console.print(f"[cyan]Signal Strength:[/] {rssi} dBm ({signal_quality})")
 
+        # Get link speed
         speed_match = re.search(r'link_speed=(\d+)', current_out)
         if speed_match:
             console.print(f"[cyan]Link Speed:[/] {speed_match.group(1)} Mbps")
@@ -1110,449 +1379,6 @@ def show_audio_setup_guide():
     console.print(guide)
 
 
-# ── Screen Record (single, latency-tuned version) ──────────────────────────
-
-def screen_record(device_id: str, duration: int = None, output_path: str = None,
-                   live_preview: bool = True, audio_mode: str = "laptop",
-                   latency_profile: str = "low") -> bool:
-    """
-    Record the device screen using scrcpy's built-in --record option (optionally
-    with a live mirror window and audio), tuned with the same latency profile used
-    by open_remote_screen. Falls back to `adb shell screenrecord` if scrcpy isn't
-    available on PATH (no audio / no latency tuning in that fallback).
-    """
-    if not output_path:
-        from datetime import datetime
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = f"screen_record_{timestamp}.mp4"
-
-    if shutil.which("scrcpy"):
-        cmd = [
-            "scrcpy",
-            "-s", device_id,
-            "--record", output_path,
-            "--window-title", "Screen Recording",
-        ]
-        cmd += build_latency_flags(latency_profile)
-
-        if not live_preview:
-            cmd.append("--no-display")
-        if duration:
-            cmd += ["--time-limit", str(duration)]
-
-        if audio_mode == "device":
-            cmd.append("--no-audio")
-            console.print("[cyan]Audio mode: Device only (recording will have no audio track)[/]")
-        elif audio_mode == "both":
-            if "--audio-dup" in _scrcpy_help_text():
-                cmd.append("--audio-dup")
-                console.print("[cyan]Audio mode: Both - audio duplicated to device speakers and the recording[/]")
-            else:
-                console.print("[yellow]This scrcpy build doesn't support --audio-dup; using laptop/recording audio only.[/]")
-        else:
-            console.print("[cyan]Audio mode: Laptop/recording (audio forwarded and included in recording)[/]")
-
-        console.print(f"[cyan]Recording to:[/] {output_path} (profile: {latency_profile})")
-        console.print("[dim]Close the mirror window (or press Ctrl+C here) to stop recording.[/]"
-                      if live_preview else
-                      "[dim]Recording in background. Press Ctrl+C here to stop.[/]")
-
-        try:
-            proc = subprocess.Popen(cmd)
-            if duration:
-                proc.wait(timeout=duration + 10)
-            else:
-                proc.wait()
-            console.print(f"[bold green]✓ Recording saved:[/] {output_path}")
-            return True
-        except subprocess.TimeoutExpired:
-            proc.terminate()
-            console.print(f"[bold green]✓ Recording saved:[/] {output_path}")
-            return True
-        except KeyboardInterrupt:
-            proc.terminate()
-            console.print(f"\n[bold green]✓ Recording stopped and saved:[/] {output_path}")
-            return True
-        except FileNotFoundError:
-            console.print("[bold red]scrcpy not found.[/]")
-        except OSError as exc:
-            console.print(f"[bold red]Failed to start recording:[/] {exc}")
-        return False
-
-    if audio_mode != "laptop":
-        console.print("[yellow]Note: audio options require scrcpy; the screenrecord fallback has no audio.[/]")
-    return _screenrecord_fallback(device_id, duration, output_path)
-
-
-def _screenrecord_fallback(device_id: str, duration: int, local_output_path: str) -> bool:
-    """Fallback screen recording using the on-device `screenrecord` binary via adb shell."""
-    remote_path = "/sdcard/aadi_screenrecord.mp4"
-    cmd = ["shell", "screenrecord"]
-    if duration:
-        cmd += ["--time-limit", str(min(duration, 180))]
-    cmd.append(remote_path)
-
-    console.print("[yellow]scrcpy not found — falling back to on-device screenrecord "
-                  "(max 180s per recording, no live preview, no audio).[/]")
-    console.print("[dim]Recording... press Ctrl+C to stop early.[/]")
-
-    try:
-        adb_manager.run_adb(cmd, device_id)
-    except KeyboardInterrupt:
-        adb_manager.run_adb(["shell", "pkill", "-l", "SIGINT", "screenrecord"], device_id)
-
-    console.print("[cyan]Pulling recording from device...[/]")
-    result = adb_manager.pull_file(device_id, remote_path, local_output_path)
-    if result:
-        console.print(f"[bold green]✓ Recording saved:[/] {local_output_path}")
-        adb_manager.run_adb(["shell", "rm", remote_path], device_id)
-        return True
-    console.print("[red]✗ Failed to pull recording.[/]")
-    return False
-
-
-def handle_screen_record():
-    console.rule("[bold magenta]🎥 Screen Record[/]")
-    device_id = select_device()
-    if not device_id:
-        return
-
-    duration = None
-    if Confirm.ask("[cyan]Set a fixed duration?[/]", default=False):
-        duration = IntPrompt.ask("[cyan]Duration in seconds[/]", default=30)
-
-    output_path = Prompt.ask("[cyan]Output filename (blank for auto-named)[/]", default="")
-    output_path = output_path.strip() or None
-
-    live_preview = True
-    audio_mode = "laptop"
-    latency_profile = "low"
-    if shutil.which("scrcpy"):
-        live_preview = Confirm.ask("[cyan]Show a live mirror window while recording?[/]", default=True)
-        audio_mode = Prompt.ask(
-            "[cyan]Select audio mode[/]",
-            choices=["laptop", "device", "both"],
-            default="laptop"
-        )
-        latency_profile = choose_latency_profile(device_id)
-
-    screen_record(device_id, duration=duration, output_path=output_path,
-                  live_preview=live_preview, audio_mode=audio_mode,
-                  latency_profile=latency_profile)
-
-
-# ── Camera ──────────────────────────────────────────────────────────────
-
-def check_scrcpy_camera_support() -> bool:
-    """Check if the installed scrcpy version supports --video-source=camera (scrcpy >= 2.0)."""
-    try:
-        result = subprocess.run(["scrcpy", "--version"], capture_output=True, text=True, timeout=5)
-        out = (result.stdout or "") + (result.stderr or "")
-        match = re.search(r"scrcpy\s+(\d+)\.(\d+)", out)
-        if match:
-            major, minor = int(match.group(1)), int(match.group(2))
-            return (major, minor) >= (2, 0)
-    except Exception:
-        pass
-    return False
-
-
-def list_device_cameras(device_id: str):
-    """List available camera IDs/facings on the device via scrcpy --list-cameras (scrcpy >= 2.2)."""
-    try:
-        result = subprocess.run(
-            ["scrcpy", "-s", device_id, "--list-cameras"],
-            capture_output=True, text=True, timeout=15
-        )
-        return (result.stdout or "") + (result.stderr or "")
-    except FileNotFoundError:
-        return None
-    except Exception as e:
-        return f"Error: {e}"
-
-
-def open_remote_camera(device_id: str, camera_facing: str = None, camera_id: str = None) -> bool:
-    """Stream the device's camera to the desktop using scrcpy's camera-source mode."""
-    cmd = [
-        "scrcpy",
-        "-s", device_id,
-        "--video-source=camera",
-        "--no-audio",
-        "--window-title", "Remote Camera",
-    ]
-    if camera_id:
-        cmd.append(f"--camera-id={camera_id}")
-    elif camera_facing:
-        cmd.append(f"--camera-facing={camera_facing}")
-
-    try:
-        subprocess.Popen(cmd)
-        console.print("[bold green]Remote Camera stream launched.[/]")
-        return True
-    except FileNotFoundError:
-        console.print("[bold red]scrcpy not found.[/] Install it with: [bold cyan]sudo apt install scrcpy[/]")
-    except OSError as exc:
-        console.print(f"[bold red]Failed to launch Remote Camera:[/] {exc}")
-    return False
-
-
-def capture_camera_photo(device_id: str):
-    """Trigger the device's native camera app and optionally pull the resulting photo."""
-    console.print("[cyan]Launching the camera app on the device...[/]")
-    console.print("[dim]Mirror the screen first (Remote Screen) if you need to see it to take the shot.[/]")
-    adb_manager.run_adb(
-        ["shell", "am", "start", "-a", "android.media.action.IMAGE_CAPTURE"],
-        device_id
-    )
-
-    if not Confirm.ask("[cyan]Photo taken on the device? Pull the most recent camera photo now?[/]", default=True):
-        return
-
-    remote_dir = "/sdcard/DCIM/Camera"
-    ls_output, _ = adb_manager.run_adb(["shell", "ls", "-t", remote_dir], device_id)
-    if not ls_output:
-        console.print(f"[red]Could not list {remote_dir}. It may not exist on this device.[/]")
-        return
-
-    entries = [line.strip() for line in ls_output.strip().split("\n") if line.strip()]
-    if not entries:
-        console.print("[red]No photo found in the camera folder.[/]")
-        return
-
-    latest = entries[0]
-    remote_path = f"{remote_dir}/{latest}"
-    local_dest = Prompt.ask("[cyan]Local destination path[/]", default=".")
-
-    result = adb_manager.pull_file(device_id, remote_path, local_dest)
-    if result:
-        console.print(f"[green]✓ Photo pulled successfully:[/] {latest}")
-    else:
-        console.print("[red]✗ Failed to pull photo.[/]")
-
-
-def remote_camera_menu():
-    """Remote Camera submenu — live preview via scrcpy, triggered photo capture, and camera listing."""
-    console.rule("[bold magenta]📷 Remote Camera[/]")
-    device_id = select_device()
-    if not device_id:
-        return
-
-    camera_options = [
-        ("1", "🎥", "Live Camera Preview", "Stream device camera to desktop (scrcpy >= 2.0)"),
-        ("2", "📸", "Capture Photo", "Open camera app on device and pull the resulting photo"),
-        ("3", "📋", "List Cameras", "List available camera IDs/facings on the device"),
-        ("0", "↩️", "Back", "Return to Remote Control menu"),
-    ]
-
-    while True:
-        console.print()
-        t = Table(title=f"\n[bold magenta]📷 Remote Camera - {device_id}[/]\n",
-                  box=box.DOUBLE_EDGE, border_style="magenta", header_style="bold cyan")
-        t.add_column("#", style="cyan", width=3)
-        t.add_column("", style="", width=3)
-        t.add_column("Action", style="white", min_width=20)
-        t.add_column("Description", style="dim")
-
-        for num, icon, name, desc in camera_options:
-            t.add_row(num, icon, name, desc)
-
-        console.print(t)
-
-        choice = Prompt.ask("\n[bold cyan]Remote Camera ▶[/]",
-                            choices=[num for num, *_ in camera_options], show_choices=False)
-
-        if choice == "0":
-            return
-
-        if choice == "1":
-            if not check_scrcpy():
-                continue
-            if not check_scrcpy_camera_support():
-                console.print("[yellow]Your scrcpy version may not support camera streaming. "
-                              "Requires scrcpy >= 2.0 (and Android 12+ on the device).[/]")
-                if not Confirm.ask("[cyan]Try anyway?[/]", default=True):
-                    continue
-            facing = Prompt.ask("[cyan]Camera facing[/]",
-                                choices=["back", "front", "external", "any"], default="back")
-            open_remote_camera(device_id, camera_facing=None if facing == "any" else facing)
-
-        elif choice == "2":
-            capture_camera_photo(device_id)
-
-        elif choice == "3":
-            if not check_scrcpy():
-                continue
-            out = list_device_cameras(device_id)
-            if out and out.strip():
-                console.print(out)
-            else:
-                console.print("[yellow]Could not list cameras (requires scrcpy >= 2.2).[/]")
-
-
-def file_explorer():
-    """Browse and manage files on the Android device."""
-    console.rule("[bold magenta]📁 File Explorer[/]")
-    device_id = select_device()
-    if not device_id:
-        return
-
-    current_path = "/sdcard"
-    path_history = [current_path]
-
-    while True:
-        console.clear()
-        console.print(f"[bold magenta]📁 File Explorer - {device_id}[/]\n")
-        console.print(f"[cyan]Current Path:[/] {current_path}\n")
-
-        ls_output, _ = adb_manager.run_adb(["shell", "ls", "-la", current_path], device_id)
-
-        if not ls_output:
-            console.print("[red]Failed to list directory. Path may not exist.[/]")
-            if Prompt.ask("[cyan]Go back?[/]", choices=["y", "n"], default="y") == "y":
-                if len(path_history) > 1:
-                    path_history.pop()
-                    current_path = path_history[-1]
-                else:
-                    current_path = "/"
-                    path_history = [current_path]
-            continue
-
-        lines = ls_output.strip().split('\n')
-        files = []
-        directories = []
-
-        for line in lines[1:]:
-            if not line.strip():
-                continue
-
-            parts = line.split()
-            if len(parts) >= 8:
-                permissions = parts[0]
-                name = ' '.join(parts[8:])
-
-                if permissions.startswith('d'):
-                    directories.append((name, permissions))
-                elif permissions.startswith('-'):
-                    size = parts[4] if len(parts) > 4 else "0"
-                    files.append((name, permissions, size))
-
-        if directories:
-            console.print("[bold cyan]Directories:[/]")
-            for name, perms in directories:
-                icon = "📁" if name != ".." else "⬆️"
-                console.print(f"  {icon} [white]{name}[/] [dim]({perms})[/]")
-
-        if files:
-            console.print("\n[bold cyan]Files:[/]")
-            for name, perms, size in files:
-                icon = "📄"
-                console.print(f"  {icon} [white]{name}[/] [dim]({size} bytes)[/]")
-
-        console.print("\n[bold cyan]Options:[/]")
-        console.print("  [cyan]1.[/] Navigate to directory (type name)")
-        console.print("  [cyan]2.[/] Go up one directory (..)")
-        console.print("  [cyan]3.[/] Go to root (/)")
-        console.print("  [cyan]4.[/] Go to specific path")
-        console.print("  [cyan]5.[/] Pull file from device")
-        console.print("  [cyan]6.[/] Push file to device")
-        console.print("  [cyan]7.[/] Delete file/directory")
-        console.print("  [cyan]8.[/] Create new directory")
-        console.print("  [cyan]0.[/] Back to Remote Control menu")
-
-        choice = Prompt.ask("\n[bold cyan]Action ▶[/]",
-                           choices=["1", "2", "3", "4", "5", "6", "7", "8", "0"],
-                           show_choices=False)
-
-        if choice == "0":
-            return
-
-        elif choice == "1":
-            target = Prompt.ask("[cyan]Enter directory name[/]")
-            if target == "..":
-                if len(path_history) > 1:
-                    path_history.pop()
-                    current_path = path_history[-1]
-            else:
-                new_path = f"{current_path}/{target}" if current_path != "/" else f"/{target}"
-                check_output, _ = adb_manager.run_adb(["shell", "test", "-d", new_path], device_id)
-                if check_output is None:
-                    path_history.append(new_path)
-                    current_path = new_path
-                else:
-                    console.print(f"[red]Directory '{target}' not found.[/]")
-
-        elif choice == "2":
-            if len(path_history) > 1:
-                path_history.pop()
-                current_path = path_history[-1]
-            else:
-                console.print("[yellow]Already at root or top of history.[/]")
-
-        elif choice == "3":
-            current_path = "/"
-            path_history = [current_path]
-
-        elif choice == "4":
-            target_path = Prompt.ask("[cyan]Enter full path[/]")
-            check_output, _ = adb_manager.run_adb(["shell", "test", "-d", target_path], device_id)
-            if check_output is None:
-                path_history.append(target_path)
-                current_path = target_path
-            else:
-                console.print(f"[red]Path '{target_path}' not found.[/]")
-
-        elif choice == "5":
-            file_name = Prompt.ask("[cyan]Enter file name to pull[/]")
-            remote_path = f"{current_path}/{file_name}" if current_path != "/" else f"/{file_name}"
-            local_dest = Prompt.ask("[cyan]Local destination path[/]", default=".")
-
-            console.print(f"[cyan]Pulling {file_name} from device...[/]")
-            result = adb_manager.pull_file(device_id, remote_path, local_dest)
-            if result:
-                console.print(f"[green]✓ File pulled successfully to:[/] {local_dest}")
-            else:
-                console.print("[red]✗ Failed to pull file.[/]")
-
-        elif choice == "6":
-            local_file = Prompt.ask("[cyan]Enter local file path[/]")
-            if not os.path.exists(local_file):
-                console.print("[red]Local file not found.[/]")
-                continue
-
-            file_name = os.path.basename(local_file)
-            remote_dest = Prompt.ask("[cyan]Remote destination (directory or full path)[/]",
-                                    default=current_path)
-
-            console.print(f"[cyan]Pushing {file_name} to device...[/]")
-            result = adb_manager.push_file(device_id, local_file, remote_dest)
-            if result:
-                console.print(f"[green]✓ File pushed successfully to:[/] {remote_dest}")
-            else:
-                console.print("[red]✗ Failed to push file.[/]")
-
-        elif choice == "7":
-            target_name = Prompt.ask("[cyan]Enter file/directory name to delete[/]")
-            target_path = f"{current_path}/{target_name}" if current_path != "/" else f"/{target_name}"
-
-            if not Confirm.ask(f"[red]Are you sure you want to delete {target_name}?[/]", default=False):
-                continue
-
-            check_dir, _ = adb_manager.run_adb(["shell", "test", "-d", target_path], device_id)
-            if check_dir is None:
-                adb_manager.run_adb(["shell", "rm", "-rf", target_path], device_id)
-                console.print(f"[green]✓ Directory {target_name} deleted.[/]")
-            else:
-                adb_manager.run_adb(["shell", "rm", target_path], device_id)
-                console.print(f"[green]✓ File {target_name} deleted.[/]")
-
-        elif choice == "8":
-            dir_name = Prompt.ask("[cyan]Enter new directory name[/]")
-            new_dir_path = f"{current_path}/{dir_name}" if current_path != "/" else f"/{dir_name}"
-
-            adb_manager.run_adb(["shell", "mkdir", "-p", new_dir_path], device_id)
-            console.print(f"[green]✓ Directory {dir_name} created.[/]")
-
-
 def handle_remote_control():
     while True:
         console.print()
@@ -1570,12 +1396,11 @@ def handle_remote_control():
             if not device_id:
                 continue
             audio_mode = Prompt.ask(
-                "[cyan]Select audio mode ('device' = fastest, no audio over the link)[/]",
-                choices=["device", "laptop", "both"],
-                default="device"
+                "[cyan]Select audio mode[/]",
+                choices=["laptop", "device", "both"],
+                default="laptop"
             )
-            latency_profile = choose_latency_profile(device_id)
-            open_remote_screen(device_id, audio_mode, latency_profile)
+            open_remote_screen(device_id, audio_mode)
             continue
 
         if choice == "2":
@@ -1678,6 +1503,7 @@ def auto_reconnect_saved_devices():
         return
 
     try:
+        import json
         with open(wifi_file, "r") as f:
             wifi_data = json.load(f)
 
@@ -1690,7 +1516,7 @@ def auto_reconnect_saved_devices():
             result = adb_manager.connect_wifi(config['ip'], config['port'])
             if result:
                 console.print(f"[green]✓ Auto-reconnected to {device_id}[/]")
-                return
+                return  # Success, stop trying other devices
     except Exception as e:
         console.print(f"[dim]Auto-reconnect failed: {e}[/]")
 
@@ -1705,6 +1531,7 @@ def quick_wifi_connect():
         return
 
     try:
+        import json
         with open(wifi_file, "r") as f:
             wifi_data = json.load(f)
     except Exception as e:
@@ -1762,14 +1589,14 @@ HANDLER_MAP = {
     "15": handle_adb_shell,
     "16": handle_remote_control,
     "17": quick_wifi_connect,
-    "18": remote_network_setup_wizard,
-    "19": handle_about,
+    "18": handle_about,
 }
 
 
 def interactive_mode():
     print_banner()
 
+    # Auto-reconnect to saved WiFi devices on startup
     auto_reconnect_saved_devices()
 
     console.print(Panel(
@@ -1834,6 +1661,7 @@ Examples:
     p.add_argument("--interactive", "-i", action="store_true", help="Launch interactive menu mode")
     p.add_argument("--version", "-v", action="store_true", help="Show version")
 
+    # Device
     dg = p.add_argument_group("Device")
     dg.add_argument("--devices", action="store_true", help="List connected devices")
     dg.add_argument("--device", "-d", metavar="SERIAL", help="Target device serial number")
@@ -1848,9 +1676,11 @@ Examples:
     dg.add_argument("--pull", metavar="REMOTE", help="Pull file from device")
     dg.add_argument("--push", nargs=2, metavar=("LOCAL", "REMOTE"), help="Push file to device")
 
+    # APK Analysis
     ag = p.add_argument_group("APK Analysis")
     ag.add_argument("--apk", metavar="FILE", help="APK file to analyze")
 
+    # Network
     ng = p.add_argument_group("Network")
     ng.add_argument("--port-scan", action="store_true", help="Port scan device IP")
     ng.add_argument("--target", metavar="IP", help="Explicit scan target IP")
@@ -1860,12 +1690,14 @@ Examples:
     ng.add_argument("--ssl-pinning", metavar="PKG", help="Check SSL pinning for package")
     ng.add_argument("--mitm-guide", action="store_true", help="Show MitM setup guide")
 
+    # Vulnerability
     vg = p.add_argument_group("Vulnerability")
     vg.add_argument("--vuln-scan", action="store_true", help="Run full vulnerability scan")
     vg.add_argument("--pkg", metavar="PKG", help="Target package name")
     vg.add_argument("--cve-check", action="store_true", help="Check Android CVEs for device")
     vg.add_argument("--root-check", action="store_true", help="Check if device is rooted")
 
+    # Exploit
     eg = p.add_argument_group("Exploit")
     eg.add_argument("--exploit", metavar="MODULE",
                     choices=["activity", "broadcast", "provider", "deep-link", "frida", "shell-drop", "db-extract",
@@ -1879,6 +1711,7 @@ Examples:
     eg.add_argument("--lport", metavar="PORT", type=int, default=4444, help="Listener port")
     eg.add_argument("--db-name", metavar="DB", help="Database filename to extract")
 
+    # Payload
     pg = p.add_argument_group("Payload")
     pg.add_argument("--payload", metavar="TYPE",
                     choices=["reverse_tcp", "reverse_https", "reverse_http", "shell_tcp",
@@ -1889,6 +1722,7 @@ Examples:
                     help="Obfuscation method")
     pg.add_argument("--raw-payload", metavar="CMD", help="Payload string to obfuscate")
 
+    # Report
     rg = p.add_argument_group("Report")
     rg.add_argument("--report", choices=["html", "json", "both", "table"],
                     help="Generate report after scan")
@@ -1905,45 +1739,58 @@ def cli_mode(args):
     device_id = args.device
     apk_data = {}
 
+    # Version
     if args.version:
         console.print(f"[bold magenta]{TOOL_NAME}[/] v[bold cyan]{VERSION}[/] by [bold]{AUTHOR}[/]")
         return
 
+    # Devices
     if args.devices:
         adb_manager.check_adb()
         adb_manager.list_devices()
 
+    # Device info
     if args.info and device_id:
         adb_manager.device_info(device_id)
 
+    # Shell command
     if args.shell and device_id:
         adb_manager.shell_cmd(device_id, args.shell)
 
+    # Interactive ADB shell
     if args.adb_shell and device_id:
         adb_manager.interactive_shell(device_id)
 
+    # ADB WiFi
     if args.adb_wifi and device_id:
         adb_manager.enable_adb_wifi(device_id, args.lport)
 
+    # Screenshot
     if args.screenshot and device_id:
         adb_manager.take_screenshot(device_id)
 
+    # Logcat
     if args.logcat is not None and device_id:
         adb_manager.capture_logcat(device_id, args.logcat)
 
+    # Packages
     if args.packages and device_id:
         adb_manager.list_packages(device_id, args.packages)
 
+    # Pull file
     if args.pull and device_id:
         adb_manager.pull_file(device_id, args.pull)
 
+    # Push file
     if args.push and device_id:
         adb_manager.push_file(device_id, args.push[0], args.push[1])
 
+    # APK Analysis
     if args.apk:
         apk_data = apk_analyzer.analyze_apk(args.apk)
         _save_to_session(apk_data, "apk")
 
+    # Network
     if args.port_scan:
         target = args.target
         if not target and device_id:
@@ -1970,6 +1817,7 @@ def cli_mode(args):
     if args.mitm_guide:
         network_scanner.mitm_setup_guide()
 
+    # Vulnerability
     if args.vuln_scan and device_id:
         report = vulnerability_scanner.full_vulnerability_scan(device_id, args.pkg)
         _save_to_session(report, "vuln")
@@ -1981,6 +1829,7 @@ def cli_mode(args):
     if args.root_check and device_id:
         vulnerability_scanner.check_root_status(device_id)
 
+    # Exploit
     if args.exploit and device_id:
         ex = args.exploit
         if ex == "activity":
@@ -2002,6 +1851,7 @@ def cli_mode(args):
         elif ex == "dev-options":
             exploit_engine.enable_developer_options(device_id)
 
+    # Payload
     if args.payload:
         out = args.payload_out
         if args.payload in ("reverse_tcp", "reverse_https", "reverse_http", "shell_tcp"):
@@ -2015,6 +1865,7 @@ def cli_mode(args):
         elif args.payload == "obfuscate":
             payload_generator.obfuscate_payload(args.raw_payload or "", args.obfuscate_method)
 
+    # Report
     if args.report:
         data = _get_session()
         data["target"] = args.target_name
@@ -2038,6 +1889,7 @@ def main():
     parser = build_parser()
 
     if len(sys.argv) == 1:
+        # No args → interactive
         interactive_mode()
         return
 
