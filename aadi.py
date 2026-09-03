@@ -40,7 +40,7 @@ from modules import vulnerability_scanner, exploit_engine, payload_generator, re
 
 console = Console()
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 AUTHOR = "Aaditya Kumar Pandey"
 INSTAGRAM = "@aadi_97621"
 TOOL_NAME = "AADI"
@@ -170,11 +170,11 @@ MENU_OPTIONS = [
 ]
 
 REMOTE_CONTROL_OPTIONS = [
-    ("1", "🖥️", "Open Remote Screen", "Open Android screen with scrcpy (audio options)"),
+    ("1", "🖥️", "Open Remote Screen", "Low-latency scrcpy with weak-WiFi optimization"),
     ("2", "📁", "File Explorer", "Browse device files"),
-    ("3", "📷", "Remote Camera", "Open remote camera tools"),
+    ("3", "📷", "Remote Camera", "Bandwidth-optimized camera streaming tools"),
     ("4", "📸", "Take Screenshot", "Capture device screenshot"),
-    ("5", "🎥", "Screen Record", "Record device screen"),
+    ("5", "🎥", "Screen Record", "Bandwidth-aware screen recording"),
     ("6", "🎵", "Audio Setup Guide", "Setup instructions for audio streaming"),
     ("7", "📡", "WiFi Device Info", "Show wireless connection details"),
     ("8", "📊", "Network Monitor", "Monitor device network traffic"),
@@ -258,19 +258,86 @@ def handle_device_manager():
     adb_manager.device_info(device_id)
 
 
-# Screen Record option
-def screen_record(device_id: str, duration: int = None, output_path: str = None,
-                  live_preview: bool = True, audio_mode: str = "laptop") -> bool:
-    """
-    Record the device screen using scrcpy's built-in --record option (optionally
-    with a live mirror window and audio), or fall back to `adb shell screenrecord`
-    if scrcpy isn't available on PATH.
+# ── Remote performance profiles ───────────────────────────────────────────────
+def _is_wireless_device(device_id: str) -> bool:
+    """ADB TCP/IP serials normally look like 192.168.x.x:5555."""
+    return ":" in (device_id or "")
 
-    audio_mode:
-      - "laptop": default scrcpy behavior, audio forwarded to laptop and included in recording
-      - "device": --no-audio, recording will have no audio track
-      - "both":   --audio-dup, audio duplicated to device speakers AND laptop/recording
+
+def _remote_profile(device_id: str, purpose: str = "screen") -> dict:
     """
+    Choose a conservative profile for ADB-over-WiFi.
+
+    These settings reduce the amount of data that must cross a weak link.
+    They cannot repair a fundamentally unstable network, but they prevent
+    scrcpy from generating an unnecessarily large stream.
+    """
+    wireless = _is_wireless_device(device_id)
+
+    if purpose == "camera":
+        return {
+            "wireless": wireless,
+            "size": 640 if wireless else 1280,
+            "fps": 20 if wireless else 30,
+            "bitrate": "1M" if wireless else "4M",
+            "audio_buffer": 35 if wireless else 40,
+            "audio_bitrate": "48K" if wireless else "64K",
+        }
+
+    if purpose == "record":
+        return {
+            "wireless": wireless,
+            "size": 720 if wireless else 1280,
+            "fps": 30 if wireless else 60,
+            "bitrate": "2M" if wireless else "8M",
+            "audio_buffer": 35 if wireless else 40,
+            "audio_bitrate": "48K" if wireless else "64K",
+        }
+
+    return {
+        "wireless": wireless,
+        "size": 720 if wireless else 1280,
+        "fps": 30 if wireless else 60,
+        "bitrate": "2M" if wireless else "8M",
+        "audio_buffer": 35 if wireless else 40,
+        "audio_bitrate": "48K" if wireless else "64K",
+    }
+
+
+def _add_scrcpy_performance_flags(cmd: list, device_id: str, purpose: str = "screen",
+                                  audio_mode: str = "laptop") -> dict:
+    """Add only flags supported by the installed scrcpy version."""
+    help_text = _scrcpy_help()
+    profile = _remote_profile(device_id, purpose)
+
+    _add_scrcpy_option(cmd, help_text, "--max-size", profile["size"])
+    _add_scrcpy_option(cmd, help_text, "--max-fps", profile["fps"])
+    _add_scrcpy_option(cmd, help_text, "--video-bit-rate", profile["bitrate"])
+    _add_scrcpy_option(cmd, help_text, "--video-codec", "h264")
+    _add_scrcpy_option(cmd, help_text, "--video-buffer", 0)
+
+    if audio_mode == "device":
+        if "--no-audio" in help_text:
+            cmd.append("--no-audio")
+    elif audio_mode == "both":
+        if "--audio-dup" in help_text:
+            cmd.append("--audio-dup")
+
+    if audio_mode != "device":
+        _add_scrcpy_option(cmd, help_text, "--audio-buffer", profile["audio_buffer"])
+        _add_scrcpy_option(cmd, help_text, "--audio-bit-rate", profile["audio_bitrate"])
+
+    # Direct3D can reduce desktop-side rendering overhead on Windows.
+    if os.name == "nt":
+        _add_scrcpy_option(cmd, help_text, "--render-driver", "direct3d")
+
+    return profile
+
+
+#Screen Record option
+def screen_record(device_id: str, duration: int = None, output_path: str = None,
+                   live_preview: bool = True, audio_mode: str = "laptop") -> bool:
+    """Record the Android screen with a low-bandwidth profile for WiFi ADB."""
     if not output_path:
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -283,24 +350,35 @@ def screen_record(device_id: str, duration: int = None, output_path: str = None,
             "--record", output_path,
             "--window-title", "Screen Recording",
         ]
+
         if not live_preview:
             cmd.append("--no-display")
         if duration:
             cmd += ["--time-limit", str(duration)]
 
+        profile = _add_scrcpy_performance_flags(
+            cmd, device_id, purpose="record", audio_mode=audio_mode
+        )
+
         if audio_mode == "device":
-            cmd.append("--no-audio")
-            console.print("[cyan]Audio mode: Device only (recording will have no audio track)[/]")
+            console.print("[cyan]Audio mode: Device only (no audio track in recording)[/]")
         elif audio_mode == "both":
-            cmd.append("--audio-dup")
-            console.print("[cyan]Audio mode: Both - audio duplicated to device speakers and the recording[/]")
+            console.print("[cyan]Audio mode: Both[/]")
         else:
-            console.print("[cyan]Audio mode: Laptop/recording (audio forwarded and included in recording)[/]")
+            console.print("[cyan]Audio mode: Laptop/recording[/]")
+
+        if profile["wireless"]:
+            console.print(
+                f"[yellow]Weak-WiFi recording profile: "
+                f"{profile['size']}p / {profile['fps']} FPS / {profile['bitrate']}[/]"
+            )
+        else:
+            console.print(
+                f"[cyan]USB recording profile: "
+                f"{profile['size']}p / {profile['fps']} FPS / {profile['bitrate']}[/]"
+            )
 
         console.print(f"[cyan]Recording to:[/] {output_path}")
-        console.print("[dim]Close the mirror window (or press Ctrl+C here) to stop recording.[/]"
-                      if live_preview else
-                      "[dim]Recording in background. Press Ctrl+C here to stop.[/]")
 
         try:
             proc = subprocess.Popen(cmd)
@@ -324,9 +402,8 @@ def screen_record(device_id: str, duration: int = None, output_path: str = None,
             console.print(f"[bold red]Failed to start recording:[/] {exc}")
         return False
 
-    # Fallback: adb shell screenrecord (no live preview, no audio support, capped at 180s by Android itself)
     if audio_mode != "laptop":
-        console.print("[yellow]Note: audio options require scrcpy; the screenrecord fallback has no audio.[/]")
+        console.print("[yellow]Audio options require scrcpy; ADB screenrecord has no audio.[/]")
     return _screenrecord_fallback(device_id, duration, output_path)
 
 
@@ -382,8 +459,6 @@ def handle_screen_record():
 
     screen_record(device_id, duration=duration, output_path=output_path,
                   live_preview=live_preview, audio_mode=audio_mode)
-
-
 # End screen Record
 
 
@@ -416,12 +491,16 @@ def list_device_cameras(device_id: str):
         return f"Error: {e}"
 
 
-def open_remote_camera(device_id: str, camera_facing: str = None, camera_id: str = None) -> bool:
+def open_remote_camera(device_id: str, camera_facing: str = None,
+                       camera_id: str = None) -> bool:
     """
-    Stream the device's camera (not the screen) to the desktop using scrcpy's
-    webcam/camera-source mode. Requires scrcpy >= 2.0 and, on the device,
-    Android 12+ for full camera source support.
+    Stream the device camera with a bandwidth-saving profile.
+    WiFi ADB uses 640p/20FPS/1Mbps; USB uses a higher profile.
     """
+    if not shutil.which("scrcpy"):
+        console.print("[bold red]scrcpy not found.[/] Install scrcpy and ensure it is on PATH.")
+        return False
+
     cmd = [
         "scrcpy",
         "-s", device_id,
@@ -429,17 +508,32 @@ def open_remote_camera(device_id: str, camera_facing: str = None, camera_id: str
         "--no-audio",
         "--window-title", "Remote Camera",
     ]
+
     if camera_id:
         cmd.append(f"--camera-id={camera_id}")
     elif camera_facing:
         cmd.append(f"--camera-facing={camera_facing}")
 
+    profile = _add_scrcpy_performance_flags(
+        cmd, device_id, purpose="camera", audio_mode="device"
+    )
+
+    console.print(
+        f"[bold cyan]Camera profile:[/] "
+        f"{profile['size']}p / {profile['fps']} FPS / {profile['bitrate']}"
+    )
+    if profile["wireless"]:
+        console.print(
+            "[yellow]Weak-WiFi mode: reduced camera bitrate and frame rate "
+            "to minimize stalls and stale frames.[/]"
+        )
+
     try:
         subprocess.Popen(cmd)
-        console.print("[bold green]Remote Camera stream launched.[/]")
+        console.print("[bold green]✓ Remote Camera stream launched.[/]")
         return True
     except FileNotFoundError:
-        console.print("[bold red]scrcpy not found.[/] Install it with: [bold cyan]sudo apt install scrcpy[/]")
+        console.print("[bold red]scrcpy not found.[/]")
     except OSError as exc:
         console.print(f"[bold red]Failed to launch Remote Camera:[/] {exc}")
     return False
@@ -540,8 +634,6 @@ def remote_camera_menu():
                 console.print(out)
             else:
                 console.print("[yellow]Could not list cameras (requires scrcpy >= 2.2).[/]")
-
-
 # Camera option closed
 
 
@@ -563,7 +655,7 @@ def file_explorer():
 
         # List directory contents
         ls_output, _ = adb_manager.run_adb(["shell", "ls", "-la", current_path], device_id)
-
+        
         if not ls_output:
             console.print("[red]Failed to list directory. Path may not exist.[/]")
             if Prompt.ask("[cyan]Go back?[/]", choices=["y", "n"], default="y") == "y":
@@ -583,12 +675,12 @@ def file_explorer():
         for line in lines[1:]:  # Skip first line (total)
             if not line.strip():
                 continue
-
+            
             parts = line.split()
             if len(parts) >= 8:
                 permissions = parts[0]
                 name = ' '.join(parts[8:])
-
+                
                 if permissions.startswith('d'):
                     directories.append((name, permissions))
                 elif permissions.startswith('-'):
@@ -621,9 +713,9 @@ def file_explorer():
         console.print("  [cyan]8.[/] Create new directory")
         console.print("  [cyan]0.[/] Back to Remote Control menu")
 
-        choice = Prompt.ask("\n[bold cyan]Action ▶[/]",
-                            choices=["1", "2", "3", "4", "5", "6", "7", "8", "0"],
-                            show_choices=False)
+        choice = Prompt.ask("\n[bold cyan]Action ▶[/]", 
+                           choices=["1", "2", "3", "4", "5", "6", "7", "8", "0"],
+                           show_choices=False)
 
         if choice == "0":
             return
@@ -673,7 +765,7 @@ def file_explorer():
             file_name = Prompt.ask("[cyan]Enter file name to pull[/]")
             remote_path = f"{current_path}/{file_name}" if current_path != "/" else f"/{file_name}"
             local_dest = Prompt.ask("[cyan]Local destination path[/]", default=".")
-
+            
             console.print(f"[cyan]Pulling {file_name} from device...[/]")
             result = adb_manager.pull_file(device_id, remote_path, local_dest)
             if result:
@@ -687,11 +779,11 @@ def file_explorer():
             if not os.path.exists(local_file):
                 console.print("[red]Local file not found.[/]")
                 continue
-
+            
             file_name = os.path.basename(local_file)
-            remote_dest = Prompt.ask("[cyan]Remote destination (directory or full path)[/]",
-                                     default=current_path)
-
+            remote_dest = Prompt.ask("[cyan]Remote destination (directory or full path)[/]", 
+                                    default=current_path)
+            
             console.print(f"[cyan]Pushing {file_name} to device...[/]")
             result = adb_manager.push_file(device_id, local_file, remote_dest)
             if result:
@@ -703,10 +795,10 @@ def file_explorer():
             # Delete file/directory
             target_name = Prompt.ask("[cyan]Enter file/directory name to delete[/]")
             target_path = f"{current_path}/{target_name}" if current_path != "/" else f"/{target_name}"
-
+            
             if not Confirm.ask(f"[red]Are you sure you want to delete {target_name}?[/]", default=False):
                 continue
-
+            
             # Check if it's a directory
             check_dir, _ = adb_manager.run_adb(["shell", "test", "-d", target_path], device_id)
             if check_dir is None:
@@ -722,11 +814,9 @@ def file_explorer():
             # Create directory
             dir_name = Prompt.ask("[cyan]Enter new directory name[/]")
             new_dir_path = f"{current_path}/{dir_name}" if current_path != "/" else f"/{dir_name}"
-
+            
             adb_manager.run_adb(["shell", "mkdir", "-p", new_dir_path], device_id)
             console.print(f"[green]✓ Directory {dir_name} created.[/]")
-
-
 # End here File explorer
 
 def handle_apk_analyzer():
@@ -1078,18 +1168,14 @@ def _add_scrcpy_option(cmd: list, help_text: str, option: str, value=None) -> bo
 
 def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
     """
-    Launch scrcpy using a bandwidth-saving profile for wireless ADB.
+    Launch scrcpy with a low-latency, bandwidth-aware profile.
 
-    WiFi ADB is treated differently from USB:
-      - WiFi: 720p / 30 FPS / 2 Mbps / H.264 -> much less network traffic
-      - USB: 1280p / 60 FPS / 8 Mbps / H.264 -> higher quality
-
-    The wireless profile is intentionally optimized for responsiveness rather
-    than maximum image quality. This helps prevent the desktop mirror from
-    falling several frames/seconds behind during fast scrolling.
+    WiFi ADB: 720p / 30 FPS / 2 Mbps / H.264
+    USB:      1280p / 60 FPS / 8 Mbps / H.264
     """
-    help_text = _scrcpy_help()
-    is_wifi = ":" in device_id
+    if not shutil.which("scrcpy"):
+        console.print("[bold red]scrcpy not found. Ensure scrcpy is installed and on PATH.[/]")
+        return False
 
     cmd = [
         "scrcpy",
@@ -1097,65 +1183,33 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
         "--window-title", "Remote Screen",
     ]
 
-    if is_wifi:
-        # Weak-WiFi profile: keep the stream small enough for a congested
-        # 2.4 GHz or weak 5 GHz connection. H.264 is chosen for low latency.
-        max_size = 720
-        max_fps = 30
-        video_bitrate = "2M"
-        profile_text = "WEAK-WiFi: 720p / 30 FPS / H.264 / 2 Mbps"
-    else:
-        # USB can carry considerably more data without competing with WiFi.
-        max_size = 1280
-        max_fps = 60
-        video_bitrate = "8M"
-        profile_text = "USB: 1280p / 60 FPS / H.264 / 8 Mbps"
-
-    _add_scrcpy_option(cmd, help_text, "--max-size", max_size)
-    _add_scrcpy_option(cmd, help_text, "--max-fps", max_fps)
-    _add_scrcpy_option(cmd, help_text, "--video-bit-rate", video_bitrate)
-    _add_scrcpy_option(cmd, help_text, "--video-codec", "h264")
-
-    # Zero buffering keeps the mirror from intentionally displaying old frames.
-    _add_scrcpy_option(cmd, help_text, "--video-buffer", 0)
+    profile = _add_scrcpy_performance_flags(
+        cmd, device_id, purpose="screen", audio_mode=audio_mode
+    )
 
     if audio_mode == "device":
-        cmd.append("--no-audio")
         console.print("[cyan]Audio mode: Device only (lowest bandwidth)[/]")
     elif audio_mode == "laptop":
         console.print("[cyan]Audio mode: Laptop only[/]")
     elif audio_mode == "both":
-        if "--audio-dup" in help_text:
-            cmd.append("--audio-dup")
         console.print("[cyan]Audio mode: Both[/]")
+
+    console.print(
+        f"[bold cyan]Remote profile:[/] "
+        f"{profile['size']}p / {profile['fps']} FPS / H.264 / {profile['bitrate']}"
+    )
+
+    if profile["wireless"]:
+        console.print(
+            "[yellow]Weak-WiFi optimization enabled: "
+            "lower bitrate + zero video buffering prioritizes responsiveness.[/]"
+        )
     else:
-        console.print("[yellow]Unknown audio mode; using laptop audio.[/]")
-
-    # Audio is tiny compared with video, but lower it further on weak WiFi.
-    if audio_mode != "device":
-        audio_buffer = 35 if is_wifi else 40
-        _add_scrcpy_option(cmd, help_text, "--audio-buffer", audio_buffer)
-        _add_scrcpy_option(cmd, help_text, "--audio-bit-rate", "48K" if is_wifi else "64K")
-
-    # Prefer hardware-friendly Direct3D rendering on Windows when supported.
-    if os.name == "nt":
-        _add_scrcpy_option(cmd, help_text, "--render-driver", "direct3d")
-
-    console.print(f"[bold cyan]Remote profile: {profile_text}[/]")
-
-    if is_wifi:
-        console.print(
-            "[yellow]Weak-WiFi optimization enabled: lower bitrate/resolution "
-            "reduces network congestion and stale frames.[/]"
-        )
-        console.print(
-            "[dim]For the lowest latency, keep the phone and laptop on the "
-            "same WiFi network and avoid a busy 2.4 GHz channel.[/]"
-        )
+        console.print("[green]USB performance profile enabled.[/]")
 
     try:
         subprocess.Popen(cmd)
-        console.print("[bold green]Remote Screen launched with WiFi-optimized settings.[/]")
+        console.print("[bold green]✓ Remote Screen launched.[/]")
         return True
     except FileNotFoundError:
         console.print("[bold red]scrcpy not found. Ensure scrcpy is installed and on PATH.[/]")
@@ -1576,26 +1630,53 @@ def _get_session() -> dict:
 
 
 def auto_reconnect_saved_devices():
-    """Attempt to automatically reconnect to saved WiFi devices on startup."""
+    """
+    Retry saved WiFi ADB connections briefly on startup.
+
+    This does not bypass Android security or make ADB permanently reachable.
+    It simply handles short-lived WiFi startup delays.
+    """
     wifi_file = os.path.join(os.path.dirname(__file__), "wifi_devices.json")
     if not os.path.exists(wifi_file):
         return
 
     try:
-        import json
-        with open(wifi_file, "r") as f:
+        with open(wifi_file, "r", encoding="utf-8") as f:
             wifi_data = json.load(f)
 
         if not wifi_data:
             return
 
-        console.print("[cyan]Found saved WiFi devices. Attempting auto-reconnect...[/]")
+        console.print("[cyan]Found saved WiFi devices. Trying quick reconnect...[/]")
+
         for device_id, config in wifi_data.items():
-            console.print(f"[dim]Trying {config['ip']}:{config['port']}...[/]")
-            result = adb_manager.connect_wifi(config['ip'], config['port'])
-            if result:
+            ip = config.get("ip")
+            port = config.get("port", 5555)
+            if not ip:
+                continue
+
+            connected = False
+            for attempt in range(1, 4):
+                console.print(
+                    f"[dim]Trying {ip}:{port} "
+                    f"(attempt {attempt}/3)...[/]"
+                )
+                try:
+                    if adb_manager.connect_wifi(ip, port):
+                        connected = True
+                        break
+                except Exception:
+                    pass
+                time.sleep(0.8)
+
+            if connected:
                 console.print(f"[green]✓ Auto-reconnected to {device_id}[/]")
-                return  # Success, stop trying other devices
+                return
+
+        console.print(
+            "[yellow]No saved WiFi device is currently reachable. "
+            "You can reconnect later from Quick WiFi Connect.[/]"
+        )
     except Exception as e:
         console.print(f"[dim]Auto-reconnect failed: {e}[/]")
 
