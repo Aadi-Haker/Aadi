@@ -303,20 +303,20 @@ def _remote_profile(device_id: str, purpose: str = "screen") -> dict:
         profiles = {
             "very_weak": (480, 15, "700K"),
             "weak": (540, 20, "900K"),
-            "normal_wifi": (640, 24, "1.2M"),
+            "normal_wifi": (640, 24, "1200K"),
             "usb": (1280, 30, "4M"),
         }
     elif purpose == "record":
         profiles = {
             "very_weak": (480, 20, "900K"),
-            "weak": (540, 24, "1.2M"),
+            "weak": (540, 24, "1200K"),
             "normal_wifi": (720, 30, "2M"),
             "usb": (1280, 60, "8M"),
         }
     else:
         profiles = {
             "very_weak": (480, 20, "900K"),
-            "weak": (540, 25, "1.2M"),
+            "weak": (540, 25, "1200K"),
             "normal_wifi": (720, 30, "2M"),
             "usb": (1280, 60, "8M"),
         }
@@ -329,8 +329,13 @@ def _remote_profile(device_id: str, purpose: str = "screen") -> dict:
         "size": size,
         "fps": fps,
         "bitrate": bitrate,
-        "audio_buffer": 20 if tier == "very_weak" else 25 if tier == "weak" else 35 if wireless else 40,
-        "audio_bitrate": "48K" if wireless else "64K",
+        # Keep the audio path responsive while giving the decoder enough
+        # cushion to absorb WiFi jitter. Smaller buffers feel fresher but can
+        # crackle/drop on unstable links, so weak links get a modest buffer.
+        "audio_buffer": 80 if tier == "very_weak" else 70 if tier == "weak" else 55 if wireless else 40,
+        # Opus at 64K is a strong quality/latency balance for voice + media.
+        # On very weak WiFi use 48K to reduce packet pressure.
+        "audio_bitrate": "48K" if tier == "very_weak" else "64K" if wireless else "64K",
     }
 
 
@@ -342,14 +347,22 @@ def _add_scrcpy_performance_flags(cmd: list, device_id: str, purpose: str = "scr
 
     _add_scrcpy_option(cmd, help_text, "--max-size", profile["size"])
     _add_scrcpy_option(cmd, help_text, "--max-fps", profile["fps"])
-    _add_scrcpy_option(cmd, help_text, "--video-bit-rate", profile["bitrate"])
+    # On WiFi, reserve more of the link for audio. This is especially useful
+    # when the user wants clean audio while interacting over a weak connection.
+    video_bitrate = profile["bitrate"]
+    if profile["wireless"] and purpose == "screen":
+        if profile["wifi_tier"] == "very_weak":
+            video_bitrate = "650K"
+        elif profile["wifi_tier"] == "weak":
+            video_bitrate = "900K"
+    _add_scrcpy_option(cmd, help_text, "--video-bit-rate", video_bitrate)
     _add_scrcpy_option(cmd, help_text, "--video-codec", "h264")
     # Zero video buffering minimizes control latency; on unstable links this
     # intentionally drops stale frames instead of building a large queue.
     _add_scrcpy_option(cmd, help_text, "--video-buffer", 0)
 
-    # Prefer Opus for interactive audio when the installed scrcpy supports it.
-    # It remains clear at 48Kbps while consuming little network bandwidth.
+    # Prefer Opus for interactive audio when supported. Opus is much more
+    # resilient to constrained/jittery links than uncompressed audio.
     if audio_mode != "device":
         _add_scrcpy_option(cmd, help_text, "--audio-codec", "opus")
 
@@ -531,12 +544,19 @@ def list_device_cameras(device_id: str):
 def open_remote_camera(device_id: str, camera_facing: str = None,
                        camera_id: str = None) -> bool:
     """
-    Stream the device camera with a bandwidth-saving profile.
-    WiFi ADB uses 640p/20FPS/1Mbps; USB uses a higher profile.
+    Start a low-latency remote camera preview for an authorized device.
+
+    The camera path uses conservative Wi-Fi tiers: it keeps latency low on
+    weak links while raising resolution/bitrate automatically when bandwidth
+    allows. Scrcpy options are capability-checked so older versions do not
+    fail just because a newer camera option is unavailable.
     """
     if not shutil.which("scrcpy"):
         console.print("[bold red]scrcpy not found.[/] Install scrcpy and ensure it is on PATH.")
         return False
+
+    help_text = _scrcpy_help()
+    profile = _remote_profile(device_id, purpose="camera")
 
     cmd = [
         "scrcpy",
@@ -546,28 +566,62 @@ def open_remote_camera(device_id: str, camera_facing: str = None,
         "--window-title", "Remote Camera",
     ]
 
+    # Select the requested physical camera.
     if camera_id:
-        cmd.append(f"--camera-id={camera_id}")
+        _add_scrcpy_option(cmd, help_text, "--camera-id", camera_id)
     elif camera_facing:
-        cmd.append(f"--camera-facing={camera_facing}")
+        _add_scrcpy_option(cmd, help_text, "--camera-facing", camera_facing)
 
-    profile = _add_scrcpy_performance_flags(
-        cmd, device_id, purpose="camera", audio_mode="device"
-    )
+    # Camera-specific controls. Prefer the native camera-size option when
+    # available; max-size remains the compatibility fallback.
+    camera_size = profile["size"]
+    _add_scrcpy_option(cmd, help_text, "--camera-size", f"{camera_size}x{camera_size}")
+    _add_scrcpy_option(cmd, help_text, "--max-size", camera_size)
+    _add_scrcpy_option(cmd, help_text, "--max-fps", profile["fps"])
+
+    # H.264 is a good compatibility/latency choice for Wi-Fi ADB. On weak
+    # Wi-Fi, use an even smaller bitrate than the generic camera profile so
+    # frame delivery remains responsive instead of building a stale queue.
+    video_bitrate = profile["bitrate"]
+    if profile["wireless"]:
+        if profile["wifi_tier"] == "very_weak":
+            video_bitrate = "550K"
+        elif profile["wifi_tier"] == "weak":
+            video_bitrate = "800K"
+        else:
+            video_bitrate = "1100K"
+
+    _add_scrcpy_option(cmd, help_text, "--video-bit-rate", video_bitrate)
+    _add_scrcpy_option(cmd, help_text, "--video-codec", "h264")
+    _add_scrcpy_option(cmd, help_text, "--video-buffer", 0)
+
+    # Keep the device awake while the preview is running when supported.
+    _add_scrcpy_option(cmd, help_text, "--stay-awake")
+
+    # Reduce desktop-side rendering overhead on Windows.
+    if os.name == "nt":
+        _add_scrcpy_option(cmd, help_text, "--render-driver", "direct3d")
 
     console.print(
         f"[bold cyan]Camera profile:[/] "
-        f"{profile['size']}p / {profile['fps']} FPS / {profile['bitrate']}"
+        f"{profile['size']}p / {profile['fps']} FPS / {video_bitrate}"
     )
+
     if profile["wireless"]:
+        rssi_text = f" / RSSI {profile['rssi']} dBm" if profile["rssi"] is not None else ""
         console.print(
-            "[yellow]Weak-WiFi mode: reduced camera bitrate and frame rate "
-            "to minimize stalls and stale frames.[/]"
+            f"[yellow]Adaptive Wi-Fi camera mode:[/] {profile['wifi_tier']}"
+            f"{rssi_text} — low-latency frame delivery enabled."
+        )
+        console.print(
+            "[dim]The stream automatically favors smooth delivery over "
+            "maximum resolution when the Wi-Fi link is weak.[/]"
         )
 
     try:
-        subprocess.Popen(cmd)
+        proc = subprocess.Popen(cmd)
         console.print("[bold green]✓ Remote Camera stream launched.[/]")
+        console.print("[dim]If the connection becomes stronger, restart the preview to re-evaluate the Wi-Fi profile.[/]")
         return True
     except FileNotFoundError:
         console.print("[bold red]scrcpy not found.[/]")
@@ -1298,8 +1352,9 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop", display_mode:
             "Low buffering + reduced video bitrate prioritize control response.[/]"
         )
         console.print(
-            "[dim]Audio: 48Kbps Opus when supported — tuned to preserve clarity "
-            "without consuming video bandwidth.[/]"
+            f"[dim]Audio: Opus {profile['audio_bitrate']} + "
+            f"{profile['audio_buffer']}ms jitter buffer when supported — "
+            "prioritized over video on weak WiFi.[/]"
         )
     else:
         console.print("[green]USB performance profile enabled.[/]")
