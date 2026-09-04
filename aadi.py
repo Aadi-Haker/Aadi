@@ -170,7 +170,7 @@ MENU_OPTIONS = [
 ]
 
 REMOTE_CONTROL_OPTIONS = [
-    ("1", "🖥️", "Open Remote Screen", "Low-latency scrcpy with weak-WiFi optimization"),
+    ("1", "🖥️", "Open Remote Screen", "Low-latency scrcpy; choose phone display ON or OFF"),
     ("2", "📁", "File Explorer", "Browse device files"),
     ("3", "📷", "Remote Camera", "Bandwidth-optimized camera streaming tools"),
     ("4", "📸", "Take Screenshot", "Capture device screenshot"),
@@ -264,42 +264,72 @@ def _is_wireless_device(device_id: str) -> bool:
     return ":" in (device_id or "")
 
 
+def _remote_wifi_rssi(device_id: str) -> int | None:
+    """Best-effort WiFi RSSI lookup for adaptive streaming on authorized devices."""
+    if not _is_wireless_device(device_id):
+        return None
+    try:
+        out, _ = adb_manager.run_adb(["shell", "cmd", "wifi", "status"], device_id)
+        text = out or ""
+        m = re.search(r"(?i)(?:RSSI|signal)[^\-+0-9]*(-?\d{2,3})", text)
+        return int(m.group(1)) if m else None
+    except Exception:
+        return None
+
+
 def _remote_profile(device_id: str, purpose: str = "screen") -> dict:
     """
-    Choose a conservative profile for ADB-over-WiFi.
+    Select a bandwidth-aware profile for ADB-over-WiFi.
 
-    These settings reduce the amount of data that must cross a weak link.
-    They cannot repair a fundamentally unstable network, but they prevent
-    scrcpy from generating an unnecessarily large stream.
+    For weak WiFi, prioritize interaction latency and packet loss tolerance
+    over resolution. Audio stays at 48Kbps when enabled because making audio
+    much smaller saves bandwidth but noticeably reduces clarity.
     """
     wireless = _is_wireless_device(device_id)
+    rssi = _remote_wifi_rssi(device_id) if wireless else None
+
+    # Three WiFi tiers. RSSI is only a hint; the conservative default is used
+    # when the Android build does not expose cmd wifi status.
+    if wireless and (rssi is not None and rssi <= -75):
+        tier = "very_weak"
+    elif wireless and (rssi is not None and rssi <= -65):
+        tier = "weak"
+    elif wireless:
+        tier = "normal_wifi"
+    else:
+        tier = "usb"
 
     if purpose == "camera":
-        return {
-            "wireless": wireless,
-            "size": 640 if wireless else 1280,
-            "fps": 20 if wireless else 30,
-            "bitrate": "1M" if wireless else "4M",
-            "audio_buffer": 35 if wireless else 40,
-            "audio_bitrate": "48K" if wireless else "64K",
+        profiles = {
+            "very_weak": (480, 15, "700K"),
+            "weak": (540, 20, "900K"),
+            "normal_wifi": (640, 24, "1.2M"),
+            "usb": (1280, 30, "4M"),
+        }
+    elif purpose == "record":
+        profiles = {
+            "very_weak": (480, 20, "900K"),
+            "weak": (540, 24, "1.2M"),
+            "normal_wifi": (720, 30, "2M"),
+            "usb": (1280, 60, "8M"),
+        }
+    else:
+        profiles = {
+            "very_weak": (480, 20, "900K"),
+            "weak": (540, 25, "1.2M"),
+            "normal_wifi": (720, 30, "2M"),
+            "usb": (1280, 60, "8M"),
         }
 
-    if purpose == "record":
-        return {
-            "wireless": wireless,
-            "size": 720 if wireless else 1280,
-            "fps": 30 if wireless else 60,
-            "bitrate": "2M" if wireless else "8M",
-            "audio_buffer": 35 if wireless else 40,
-            "audio_bitrate": "48K" if wireless else "64K",
-        }
-
+    size, fps, bitrate = profiles[tier]
     return {
         "wireless": wireless,
-        "size": 720 if wireless else 1280,
-        "fps": 30 if wireless else 60,
-        "bitrate": "2M" if wireless else "8M",
-        "audio_buffer": 35 if wireless else 40,
+        "wifi_tier": tier,
+        "rssi": rssi,
+        "size": size,
+        "fps": fps,
+        "bitrate": bitrate,
+        "audio_buffer": 20 if tier == "very_weak" else 25 if tier == "weak" else 35 if wireless else 40,
         "audio_bitrate": "48K" if wireless else "64K",
     }
 
@@ -314,7 +344,14 @@ def _add_scrcpy_performance_flags(cmd: list, device_id: str, purpose: str = "scr
     _add_scrcpy_option(cmd, help_text, "--max-fps", profile["fps"])
     _add_scrcpy_option(cmd, help_text, "--video-bit-rate", profile["bitrate"])
     _add_scrcpy_option(cmd, help_text, "--video-codec", "h264")
+    # Zero video buffering minimizes control latency; on unstable links this
+    # intentionally drops stale frames instead of building a large queue.
     _add_scrcpy_option(cmd, help_text, "--video-buffer", 0)
+
+    # Prefer Opus for interactive audio when the installed scrcpy supports it.
+    # It remains clear at 48Kbps while consuming little network bandwidth.
+    if audio_mode != "device":
+        _add_scrcpy_option(cmd, help_text, "--audio-codec", "opus")
 
     if audio_mode == "device":
         if "--no-audio" in help_text:
@@ -1166,22 +1203,75 @@ def _add_scrcpy_option(cmd: list, help_text: str, option: str, value=None) -> bo
     return True
 
 
-def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
+def open_remote_screen(device_id: str, audio_mode: str = "laptop", display_mode: str = "on") -> bool:
     """
     Launch scrcpy with a low-latency, bandwidth-aware profile.
 
-    WiFi ADB: 720p / 30 FPS / 2 Mbps / H.264
-    USB:      1280p / 60 FPS / 8 Mbps / H.264
+    The phone display is explicitly woken before mirroring when ``display_mode``
+    is ``on``. This prevents an accidentally selected screen-off mode from
+    being confused with a black remote display.
+
+    Important Android limitation: some Android versions mark the lock-screen
+    PIN/password surface as secure. Android may therefore hide that protected
+    surface from screen capture. This function does not bypass that protection.
+
+    display_mode:
+      - "on": wake the physical display before starting scrcpy.
+      - "off": keep the physical phone display off while scrcpy mirrors it.
     """
+    if display_mode not in ("on", "off"):
+        console.print("[bold red]Invalid display mode. Use 'on' or 'off'.[/]")
+        return False
+
     if not shutil.which("scrcpy"):
         console.print("[bold red]scrcpy not found. Ensure scrcpy is installed and on PATH.[/]")
         return False
+
+    # Capability-check scrcpy options instead of assuming every version supports them.
+    help_text = _scrcpy_help()
+
+    if display_mode == "off":
+        if "--turn-screen-off" not in help_text:
+            console.print(
+                "[bold red]This scrcpy version does not support --turn-screen-off.[/] "
+                "Update scrcpy or choose display mode 'on'."
+            )
+            return False
+    else:
+        # Wake the physical display before starting scrcpy. We deliberately use
+        # ordinary Android input rather than attempting to bypass the lock screen.
+        try:
+            console.print("[cyan]Waking phone display before mirroring...[/]")
+            adb_manager.run_adb(
+                ["shell", "input", "keyevent", "KEYCODE_WAKEUP"],
+                device_id,
+            )
+            time.sleep(0.35)
+        except Exception as exc:
+            console.print(f"[yellow]Could not wake the display: {exc}[/]")
 
     cmd = [
         "scrcpy",
         "-s", device_id,
         "--window-title", "Remote Screen",
     ]
+
+    # Keep the Android display/session awake while scrcpy is active. This is a
+    # normal scrcpy feature; it does not unlock the phone or bypass secure UI.
+    # It helps prevent an accidental sleep transition from looking like a
+    # broken/black video stream.
+    _add_scrcpy_option(cmd, help_text, "--stay-awake")
+    _add_scrcpy_option(cmd, help_text, "--power-on")
+
+    if display_mode == "off":
+        cmd.append("--turn-screen-off")
+        console.print("[yellow]Phone physical display: OFF[/]")
+        console.print(
+            "[dim]The remote mirror remains active, but Android may hide the PIN/password UI "
+            "because it is a protected secure surface.[/]"
+        )
+    else:
+        console.print("[green]Phone physical display: ON[/]")
 
     profile = _add_scrcpy_performance_flags(
         cmd, device_id, purpose="screen", audio_mode=audio_mode
@@ -1200,9 +1290,16 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
     )
 
     if profile["wireless"]:
+        tier = profile.get("wifi_tier", "normal_wifi")
+        rssi = profile.get("rssi")
+        rssi_text = f" / RSSI {rssi} dBm" if rssi is not None else ""
         console.print(
-            "[yellow]Weak-WiFi optimization enabled: "
-            "lower bitrate + zero video buffering prioritizes responsiveness.[/]"
+            f"[yellow]Adaptive WiFi mode: {tier}{rssi_text}. "
+            "Low buffering + reduced video bitrate prioritize control response.[/]"
+        )
+        console.print(
+            "[dim]Audio: 48Kbps Opus when supported — tuned to preserve clarity "
+            "without consuming video bandwidth.[/]"
         )
     else:
         console.print("[green]USB performance profile enabled.[/]")
@@ -1210,6 +1307,10 @@ def open_remote_screen(device_id: str, audio_mode: str = "laptop") -> bool:
     try:
         subprocess.Popen(cmd)
         console.print("[bold green]✓ Remote Screen launched.[/]")
+        console.print(
+            "[dim]Note: Android secure PIN/password surfaces can be intentionally hidden "
+            "from screen capture. AADI does not disable or bypass that protection.[/]"
+        )
         return True
     except FileNotFoundError:
         console.print("[bold red]scrcpy not found. Ensure scrcpy is installed and on PATH.[/]")
@@ -1533,7 +1634,12 @@ def handle_remote_control():
                 choices=["laptop", "device", "both"],
                 default="laptop"
             )
-            open_remote_screen(device_id, audio_mode)
+            display_mode = Prompt.ask(
+                "[cyan]Phone physical display[/]",
+                choices=["on", "off"],
+                default="on"
+            )
+            open_remote_screen(device_id, audio_mode, display_mode)
             continue
 
         if choice == "2":
@@ -1725,6 +1831,7 @@ def quick_wifi_connect():
         if Confirm.ask("[cyan]Would you like to clear saved devices?[/]", default=False):
             os.remove(wifi_file)
             console.print("[green]✓ Saved WiFi devices cleared.[/]")
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
