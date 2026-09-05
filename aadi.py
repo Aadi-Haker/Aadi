@@ -541,6 +541,14 @@ def list_device_cameras(device_id: str):
         return f"Error: {e}"
 
 
+def validate_camera_id(device_id: str, camera_id: str) -> bool:
+    """Validate that a camera ID exists on the device."""
+    cameras_output = list_device_cameras(device_id)
+    if not cameras_output or "Error" in cameras_output:
+        return False
+    return camera_id in cameras_output
+
+
 def open_remote_camera(device_id: str, camera_facing: str = None,
                        camera_id: str = None) -> bool:
     """
@@ -574,10 +582,19 @@ def open_remote_camera(device_id: str, camera_facing: str = None,
 
     # Camera-specific controls. Prefer the native camera-size option when
     # available; max-size remains the compatibility fallback.
-    camera_size = profile["size"]
-    _add_scrcpy_option(cmd, help_text, "--camera-size", f"{camera_size}x{camera_size}")
-    _add_scrcpy_option(cmd, help_text, "--max-size", camera_size)
-    _add_scrcpy_option(cmd, help_text, "--max-fps", profile["fps"])
+    # Use realistic camera aspect ratios instead of square format
+    camera_sizes = {
+        "very_weak": (640, 480),   # 4:3 aspect ratio
+        "weak": (854, 480),        # 16:9 aspect ratio  
+        "normal_wifi": (1280, 720), # 16:9 HD
+        "usb": (1920, 1080)        # 16:9 Full HD
+    }
+    width, height = camera_sizes[profile["wifi_tier"] if profile["wireless"] else "usb"]
+    # Use camera-size for camera streaming, fall back to max-size if not supported
+    if "--camera-size" in help_text:
+        _add_scrcpy_option(cmd, help_text, "--camera-size", f"{width}x{height}")
+    else:
+        _add_scrcpy_option(cmd, help_text, "--max-size", width)
 
     # H.264 is a good compatibility/latency choice for Wi-Fi ADB. On weak
     # Wi-Fi, use an even smaller bitrate than the generic camera profile so
@@ -710,10 +727,16 @@ def remote_camera_menu():
                               "Requires scrcpy >= 2.0 (and Android 12+ on the device).[/]")
                 if not Confirm.ask("[cyan]Try anyway?[/]", default=True):
                     continue
+            
+            # Move this outside the nested if block so facing is always defined
             facing = Prompt.ask("[cyan]Camera facing[/]",
-                                choices=["back", "front", "external", "any"], default="back")
-            open_remote_camera(device_id, camera_facing=None if facing == "any" else facing)
-
+                choices=["back", "front", "external", "any"], default="back")
+            
+            if facing == "any":
+                # Let scrcpy choose the default camera
+                open_remote_camera(device_id, camera_facing=None)
+            else:
+                open_remote_camera(device_id, camera_facing=facing)
         elif choice == "2":
             capture_camera_photo(device_id)
 
