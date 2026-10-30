@@ -1,13 +1,15 @@
 """
-Aadi — AI Vulnerability Triage & Remediation Assistant Module
+Aadi — AI Vulnerability Triage & Remediation Assistant Module (Optimized)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import json
+import difflib
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich import box
+from rich.prompt import Prompt
 
 console = Console()
 
@@ -32,6 +34,39 @@ ATTACK_CHAIN_RULES = [
         "impact": "HIGH"
     }
 ]
+
+REMEDIATIONS_DB = {
+    "Debuggable Application": (
+        "// AndroidManifest.xml FIX:\n"
+        "<application\n"
+        "    android:debuggable=\"false\"\n"
+        "    android:allowBackup=\"false\">\n"
+        "</application>"
+    ),
+    "Exported Components": (
+        "// AndroidManifest.xml FIX:\n"
+        "<activity\n"
+        "    android:name=\".TargetActivity\"\n"
+        "    android:exported=\"false\">\n"
+        "</activity>"
+    ),
+    "Insecure Data Storage": (
+        "// Secure SharedPreferences storage implementation (Kotlin/Java):\n"
+        "EncryptedSharedPreferences.create(\n"
+        "    context,\n"
+        "    \"secure_prefs_filename\",\n"
+        "    masterKey,\n"
+        "    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,\n"
+        "    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM\n"
+        ")"
+    ),
+    "Backup Enabled": (
+        "// AndroidManifest.xml FIX:\n"
+        "<application\n"
+        "    android:allowBackup=\"false\">\n"
+        "</application>"
+    )
+}
 
 
 def triage_findings(findings: list) -> dict:
@@ -100,36 +135,27 @@ def display_triage_report(findings: list):
 
 
 def generate_custom_remediation(vuln_name: str) -> str:
-    """Generate developer-ready code fixes for specific vulnerabilities."""
-    remediations = {
-        "Debuggable Application": (
-            "// AndroidManifest.xml FIX:\n"
-            "<application\n"
-            "    android:debuggable=\"false\"\n"
-            "    android:allowBackup=\"false\">\n"
-            "</application>"
-        ),
-        "Exported Components": (
-            "// AndroidManifest.xml FIX:\n"
-            "<activity\n"
-            "    android:name=\".TargetActivity\"\n"
-            "    android:exported=\"false\">\n"
-            "</activity>"
-        ),
-        "Insecure Data Storage": (
-            "// Secure SharedPreferences storage implementation (Kotlin/Java):\n"
-            "EncryptedSharedPreferences.create(\n"
-            "    context,\n"
-            "    \"secure_prefs_filename\",\n"
-            "    masterKey,\n"
-            "    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,\n"
-            "    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM\n"
-            ")"
-        )
-    }
+    """Generate developer-ready code fixes for specific vulnerabilities with smart fuzzy matching."""
+    vuln_keys = list(REMEDIATIONS_DB.keys())
 
-    fix = remediations.get(vuln_name, "Apply principle of least privilege, input validation, and proper encryption standards.")
-    console.print(Panel(fix, title=f"[bold green]🛡 Code Remediation for: {vuln_name}[/]", border_style="green"))
+    # Exact match check
+    fix = REMEDIATIONS_DB.get(vuln_name)
+    matched_name = vuln_name
+
+    # If exact match fails, use fuzzy matching to find closest valid vulnerability
+    if not fix:
+        matches = difflib.get_close_matches(vuln_name, vuln_keys, n=1, cutoff=0.4)
+        if matches:
+            matched_name = matches[0]
+            fix = REMEDIATIONS_DB.get(matched_name)
+            console.print(
+                f"[yellow]ℹ Exact match not found for '{vuln_name}'. Showing closest match: '{matched_name}'[/]")
+
+    if not fix:
+        fix = "Apply principle of least privilege, input validation, and proper encryption standards."
+        matched_name = vuln_name
+
+    console.print(Panel(fix, title=f"[bold green]🛡 Code Remediation for: {matched_name}[/]", border_style="green"))
     return fix
 
 
@@ -155,7 +181,6 @@ def ai_assistant_menu(session_data: dict):
 
         console.print(t)
 
-        from rich.prompt import Prompt
         choice = Prompt.ask("\n[bold cyan]AI Assistant ▶[/]", choices=[num for num, *_ in options], show_choices=False)
 
         if choice == "0":

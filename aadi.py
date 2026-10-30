@@ -55,6 +55,8 @@ from modules import overlay_phish
 from modules import apk_patcher
 from modules import keylogger
 from modules import clickjack_helper
+from modules.rat_handler import start_listener
+from modules.cloud_tunnel import start_cloud_tunnel
 
 
 console = Console()
@@ -81,7 +83,6 @@ BANNER_ART = r"""
 BANNER_LINES_GRADIENT = [
     "magenta", "bright_magenta", "purple", "deep_pink3", "orchid", "violet"
 ]
-
 
 def get_banner_status():
     """Gather live status info for the banner."""
@@ -199,7 +200,9 @@ MENU_OPTIONS = [
     ("30", "📦", "Automated APK Patcher", "Decompile and inspect APK via apktool"),
     ("31", "⌨️", "Android Keylogger", "Monitor and dump raw device touch/keyboard events"),
     ("32", "🖱️", "Clickjacking PoC Generator", "Generate transparent UI-redressing exploit templates"),
-    ("33", "❔", "About", "About AADI"),
+    ("33", "🌐", "RAT & C2 Multi-Session Listener", "Start background TCP listener for reverse shell sessions"),
+    ("34", "☁️", "Cloud Tunnel & Port Forwarding", "Expose local RAT listener or ports to the internet"),
+    ("35", "❔", "About", "About AADI"),
     ("0", "🚪", "Exit", "Exit AADI"),
 ]
 
@@ -2057,7 +2060,9 @@ HANDLER_MAP = {
     "30": lambda: apk_patcher.decompile_and_patch_apk(Prompt.ask("Enter path to APK")),
     "31": lambda: keylogger.dump_input_events(select_device()),
     "32": lambda: clickjack_helper.generate_clickjack_poc(Prompt.ask("Enter target web URL")),
-    "33": handle_about,
+    "33": start_listener,
+    "34": start_cloud_tunnel,
+    "35": handle_about,
 }
 
 

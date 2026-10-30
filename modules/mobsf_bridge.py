@@ -1,48 +1,89 @@
 """
-Aadi — MobSF REST API Bridge Module
+Aadi — MobSF REST API Bridge Module (Enhanced & Automated)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import requests
 import os
+import json
 from rich.console import Console
 from rich.panel import Panel
 
 console = Console()
 
+
 def upload_and_scan_mobsf(apk_path: str, mobsf_url: str = "http://localhost:8000", api_key: str = ""):
-    """Upload APK to MobSF and retrieve security assessment."""
+    """Upload APK to MobSF, trigger scan, and fetch vulnerability summary."""
     if not os.path.exists(apk_path):
         console.print(f"[bold red]✗ APK file not found:[/] {apk_path}")
-        return
+        return False
 
     headers = {"Authorization": api_key} if api_key else {}
-    upload_url = f"{mobsf_url}/api/v1/upload"
+    upload_url = f"{mobsf_url.rstrip('/')}/api/v1/upload"
 
-    console.print(Panel(f"[cyan]Uploading {os.path.basename(apk_path)} to MobSF at {mobsf_url}...[/]", border_style="magenta"))
+    console.print(Panel(
+        f"[cyan]Target APK:[/] {os.path.basename(apk_path)}\n"
+        f"[cyan]MobSF Server:[/] {mobsf_url}",
+        title="[bold cyan]🛡️ AADI MobSF Security Bridge[/]",
+        border_style="magenta"
+    ))
 
     try:
+        # 1. Upload APK
+        console.print("[cyan][*] Uploading APK to MobSF...[/]")
         with open(apk_path, "rb") as f:
             files = {"file": (os.path.basename(apk_path), f)}
-            response = requests.post(upload_url, headers=headers, files=files)
+            response = requests.post(upload_url, headers=headers, files=files, timeout=60)
 
         if response.status_code == 200:
             res_json = response.json()
             file_hash = res_json.get("hash")
             app_name = res_json.get("file_name")
-            console.print(f"[bold green]✓ Upload successful! Hash: {file_hash}[/]")
+            scan_type = res_json.get("scan_type", "apk")
 
-            # Trigger scan
-            console.print("[yellow][*] Triggering static analysis scan on MobSF...[/]")
-            scan_url = f"{mobsf_url}/api/v1/scan"
-            scan_data = {"file_name": app_name, "hash": file_hash, "scan_type": "apk"}
-            scan_res = requests.post(scan_url, headers=headers, data=scan_data)
+            console.print(f"[bold green]✓ Upload successful! Hash:[/] [cyan]{file_hash}[/]")
+
+            # 2. Trigger Scan
+            console.print("[yellow][*] Triggering static analysis scan on MobSF (this may take a moment)...[/]")
+            scan_url = f"{mobsf_url.rstrip('/')}/api/v1/scan"
+            scan_data = {"file_name": app_name, "hash": file_hash, "scan_type": scan_type}
+
+            scan_res = requests.post(scan_url, headers=headers, data=scan_data, timeout=120)
 
             if scan_res.status_code == 200:
-                console.print("[bold green]✓ MobSF scan completed successfully! Check MobSF web UI for full report.[/]")
+                console.print("[bold green]✓ MobSF scan completed successfully![/]")
+
+                # 3. Optional: Fetch JSON Report Summary
+                try:
+                    report_url = f"{mobsf_url.rstrip('/')}/api/v1/report_json"
+                    report_res = requests.post(report_url, headers=headers, data={"hash": file_hash}, timeout=30)
+                    if report_res.status_code == 200:
+                        report_data = report_res.json()
+                        app_score = report_data.get("security_score", "N/A")
+                        high_sev = len(report_data.get("high", []))
+
+                        console.print(Panel(
+                            f"[white]App Name:[/] [bold]{report_data.get('app_name', app_name)}[/]\n"
+                            f"[white]Security Score:[/] [bold yellow]{app_score}/100[/]\n"
+                            f"[white]High Severity Issues:[/] [bold red]{high_sev}[/]",
+                            title="[bold green]📊 Scan Summary Report[/]",
+                            border_style="green"
+                        ))
+                except Exception:
+                    pass
+
+                console.print(f"[dim]Full report available on MobSF web UI at: {mobsf_url}/view/{file_hash}[/]")
+                return True
             else:
-                console.print(f"[bold red]✗ Scan failed:[/] {scan_res.text}")
+                console.print(f"[bold red]✗ Scan failed with status {scan_res.status_code}:[/] {scan_res.text}")
+                return False
         else:
             console.print(f"[bold red]✗ Upload failed with status {response.status_code}:[/] {response.text}")
+            return False
+
+    except requests.exceptions.ConnectionError:
+        console.print(f"[bold red]✗ Connection error: Could not reach MobSF server at {mobsf_url}. Is it running?[/]")
+        return False
     except Exception as e:
-        console.print(f"[bold red]✗ Connection error to MobSF server:[/] {e}")
+        console.print(f"[bold red]✗ An unexpected error occurred:[/] {e}")
+        return False

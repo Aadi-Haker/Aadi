@@ -1,15 +1,63 @@
 """
-Aadi — Fake Login Phishing & Overlay Attack Module
+Aadi — Fake Login Phishing & Overlay Attack Module (Enhanced)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
+import subprocess
+import time
 from rich.console import Console
 from rich.panel import Panel
 
 console = Console()
 
-def deploy_overlay_payload(target_package: str):
-    """Generate overlay phishing warning/template configuration."""
-    console.print(Panel(f"[cyan]Deploying overlay phishing template for target: {target_package}[/]", border_style="magenta"))
-    console.print("[yellow][*] Note: Requires SYSTEM_ALERT_WINDOW permission on target context.[/]")
-    console.print("[bold green]✓ Overlay attack payload structure initialized successfully.[/]")
+def _run_adb(args: list, device_id: str = None):
+    """Helper function to execute ADB commands safely."""
+    cmd = ["adb"]
+    if device_id:
+        cmd += ["-s", device_id]
+    cmd += args
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        return res.stdout.strip(), res.stderr.strip(), res.returncode
+    except Exception as e:
+        return "", str(e), -1
+
+def deploy_overlay_payload(device_id: str, target_package: str, main_activity: str = ""):
+    """Simulate overlay attack deployment and launch target application to capture interface focus."""
+    if not target_package:
+        console.print("[bold red]✗ Target package name is required![/]")
+        return False
+
+    console.print(Panel(
+        f"[cyan]Target Package:[/] [bold magenta]{target_package}[/]\n"
+        "[white]Initializing transparent overlay window simulation...[/]\n"
+        "[yellow]⚠ Requirement: Target context must possess 'SYSTEM_ALERT_WINDOW' permission.[/]",
+        title="[bold red]🎭 AADI Overlay Phishing Engine[/]",
+        border_style="magenta"
+    ))
+
+    # Check if target package is installed
+    console.print("[cyan][*] Verifying target package installation on device...[/]")
+    out, _, rc = _run_adb(["shell", "pm", "path", target_package], device_id)
+    if rc != 0 or not out:
+        console.print(f"[bold yellow]⚠ Warning: Package '{target_package}' not found on connected device.[/]")
+    else:
+        console.print(f"[green]✓ Target package verified on device.[/]")
+
+    # If main activity is provided, launch it to bring it to foreground
+    if main_activity:
+        component = f"{target_package}/{main_activity}" if not main_activity.startswith(".") else f"{target_package}{main_activity}"
+        console.print(f"[cyan][*] Bringing target activity to foreground: {component}[/]")
+        _, err, launch_rc = _run_adb(["shell", "am", "start", "-n", component], device_id)
+        if launch_rc == 0:
+            console.print("[bold green]✓ Target application brought to foreground successfully.[/]")
+        else:
+            console.print(f"[dim red]Could not auto-launch activity: {err}[/]")
+
+    console.print(Panel(
+        "[bold green]✓ Overlay attack payload structure initialized successfully![/]\n"
+        "[white]Tip: In a full attack chain, a background service draws an un-touch-transparent "
+        "or fake login view over the target window to harvest user inputs.[/]",
+        border_style="green"
+    ))
+    return True

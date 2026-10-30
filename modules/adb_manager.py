@@ -1,5 +1,5 @@
 """
-Aadi — ADB Manager Module
+Aadi — ADB Manager Module (Optimized & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
@@ -7,6 +7,7 @@ import subprocess
 import re
 import os
 import time
+import json
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -31,13 +32,23 @@ def run_adb(args: list, device_id: str = None, capture: bool = True):
 
 
 def _extract_device_ip(text: str) -> str:
-    """Extract IP address from ADB output."""
-    match = re.search(r"\binet\s+(\d+\.\d+\.\d+\.\d+)", text or "")
-    if match:
-        return match.group(1)
-    match = re.search(r"\bsrc\s+(\d+\.\d+\.\d+\.\d+)", text or "")
-    if match:
-        return match.group(1)
+    """Extract valid local network IP address from ADB output, avoiding loopback."""
+    if not text:
+        return None
+
+    # Match standard IPv4 addresses
+    matches = re.findall(r"\b(?:inet\s+|src\s+)(\d+\.\d+\.\d+\.\d+)", text)
+    for ip in matches:
+        # Skip localhost/loopback
+        if not ip.startswith("127."):
+            return ip
+
+    # Fallback generic search if specific keywords miss
+    all_ips = re.findall(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b", text)
+    for ip in all_ips:
+        if not ip.startswith("127.") and not ip.startswith("0."):
+            return ip
+
     return None
 
 
@@ -164,17 +175,17 @@ def dumpsys(device_id: str, service: str = "package"):
 
 
 def capture_logcat(device_id: str, lines: int = 200):
-    """Capture last N lines of logcat."""
+    """Capture last N lines of logcat and scan for sensitive security patterns."""
     console.print(f"[cyan]Capturing last {lines} lines of logcat...[/]")
     out, _ = run_adb(["shell", f"logcat -d -t {lines}"], device_id)
     filename = f"aadi_logcat_{int(time.time())}.txt"
     if out:
-        with open(filename, "w") as f:
+        with open(filename, "w", encoding="utf-8") as f:
             f.write(out)
         console.print(f"[green]✓ Logcat saved to:[/] {filename}")
 
     # Highlight security-sensitive patterns
-    patterns = ["password", "token", "secret", "api_key", "auth", "credential", "private"]
+    patterns = ["password", "token", "secret", "api_key", "auth", "credential", "private", "bearer"]
     hits = []
     for line in out.splitlines():
         low = line.lower()
@@ -224,9 +235,8 @@ def enable_adb_wifi(device_id: str, port: int = 5555):
     run_adb(["shell", f"setprop service.adb.tcp.port {port}"], device_id)
     run_adb(["shell", "stop adbd && start adbd"], device_id)
     ip_out, _ = run_adb(["shell", "ip addr show wlan0"], device_id)
-    ip_match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", ip_out or "")
-    if ip_match:
-        ip = ip_match.group(1)
+    ip = _extract_device_ip(ip_out)
+    if ip:
         console.print(f"[green]✓ ADB WiFi enabled![/] Connect with: [bold yellow]adb connect {ip}:{port}[/]")
         return ip, port
     else:
@@ -236,12 +246,12 @@ def enable_adb_wifi(device_id: str, port: int = 5555):
 
 def _get_wifi_ip(device_id: str) -> str:
     wlan_out, _ = run_adb(["shell", "ip addr show wlan0"], device_id)
-    ip = _extract_device_ip(wlan_out or "")
+    ip = _extract_device_ip(wlan_out)
     if ip:
         return ip
 
     route_out, _ = run_adb(["shell", "ip route"], device_id)
-    return _extract_device_ip(route_out or "")
+    return _extract_device_ip(route_out)
 
 
 def connect_wifi(ip: str, port: int = 5555) -> bool:
@@ -258,7 +268,7 @@ def connect_wifi(ip: str, port: int = 5555) -> bool:
 
 
 def auto_adb_wifi_connect(device_id: str, port: int = 5555):
-    """Automatically switch USB ADB to WiFi mode and connect to the device."""
+    """Automatically switch USB ADB to WiFi mode and connect to the device safely."""
     if not device_id:
         console.print(Panel(
             "[bold red]No device selected.[/]\nConnect a device with USB Debugging enabled and try again.",
@@ -310,16 +320,24 @@ def auto_adb_wifi_connect(device_id: str, port: int = 5555):
         border_style="green",
     ))
 
-    # Save WiFi connection info to a file for quick reconnect
+    # Safely save WiFi connection info to a file with JSON error handling
     try:
         wifi_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "wifi_devices.json")
-        import json
         wifi_data = {}
         if os.path.exists(wifi_file):
-            with open(wifi_file, "r") as f:
-                wifi_data = json.load(f)
-        wifi_data[f"{ip}:{port}"] = {"ip": ip, "port": port, "last_connected": time.strftime("%Y-%m-%d %H:%M:%S")}
-        with open(wifi_file, "w") as f:
+            try:
+                with open(wifi_file, "r", encoding="utf-8") as f:
+                    wifi_data = json.load(f)
+            except json.JSONDecodeError:
+                wifi_data = {}  # Overwrite corrupted JSON safely
+
+        wifi_data[f"{ip}:{port}"] = {
+            "ip": ip,
+            "port": port,
+            "last_connected": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+        with open(wifi_file, "w", encoding="utf-8") as f:
             json.dump(wifi_data, f, indent=2)
         console.print(f"[green]✓ WiFi device saved for quick reconnect[/]")
     except Exception as e:

@@ -1,33 +1,111 @@
 """
-Aadi — Advanced Intent & Deep-Link Fuzzer
+Aadi — Advanced Intent & Deep-Link Fuzzer (Enhanced & Robust)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import subprocess
+import time
 from rich.console import Console
+from rich.table import Table
 from rich.panel import Panel
+from rich import box
 
 console = Console()
 
 
-def fuzz_exported_activities(device_id: str, package_name: str, activity_list: list):
-    """Fuzz exported activities using random or malicious intent actions/extras."""
-    console.print(Panel(f"[cyan]Fuzzing exported activities for package: {package_name}[/]", border_style="magenta"))
+def _run_adb(args: list, device_id: str = None, timeout: int = 3):
+    """Helper function to run adb commands with timeout."""
+    cmd = ["adb"]
+    if device_id:
+        cmd += ["-s", device_id]
+    cmd += args
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return res.stdout.strip(), res.stderr.strip(), res.returncode
+    except subprocess.TimeoutExpired:
+        return "TIMEOUT", "Process timed out", -2
+    except Exception as e:
+        return "", str(e), -1
 
+
+def fuzz_exported_activities(device_id: str, package_name: str, activity_list: list):
+    """Fuzz exported activities using advanced intent actions and input validation payloads."""
+    if not activity_list:
+        console.print("[yellow]⚠ No exported activities provided for fuzzing.[/]")
+        return
+
+    console.print(Panel(
+        f"[cyan]Starting Advanced Intent Fuzzing[/]\n"
+        f"[white]Target Package:[/] [bold magenta]{package_name}[/]\n"
+        f"[white]Target Activities:[/] [bold yellow]{len(activity_list)} found[/]",
+        title="[bold cyan]⚡ AADI Intent Fuzzer Engine[/]",
+        border_style="magenta"
+    ))
+
+    # Standard and malicious fuzz actions
     payload_actions = [
         "android.intent.action.VIEW",
         "android.intent.action.MAIN",
+        "android.intent.action.EDIT",
+        "android.intent.action.SEND",
         "com.malicious.action.TEST"
     ]
 
+    # Input validation / fuzz payloads for intent extras
+    fuzz_payloads = [
+        ("test_string", "' OR 1=1 -- "),  # SQL Injection probe
+        ("payload", "<script>alert(1)</script>"),  # XSS / Code injection probe
+        ("data", "A" * 1000),  # Buffer overflow / Large input probe
+        ("url", "file:///etc/passwd"),  # Path traversal URI probe
+        ("debug", "true"),  # Boolean debug flag toggle
+        ("account_id", "-1"),  # Integer boundary test
+    ]
+
+    results_table = Table(title="[bold red]🎯 Intent Fuzzing Results[/]", box=box.DOUBLE_EDGE, border_style="red",
+                          header_style="bold red")
+    results_table.add_column("Activity", style="cyan", width=25)
+    results_table.add_column("Action", style="yellow", width=22)
+    results_table.add_column("Payload Extra", style="white", width=20)
+    results_table.add_column("Status / Response", style="green", width=20)
+
+    total_tests = 0
+    vulnerable_hits = 0
+
     for act in activity_list:
+        component = f"{package_name}/{act}" if not act.startswith(".") else f"{package_name}{act}"
+
         for actn in payload_actions:
-            cmd = ["adb", "-s", device_id, "shell", "am", "start", "-a", actn, "-n", f"{package_name}/{act}"]
-            console.print(f"[dim]Executing: {' '.join(cmd)}[/]")
-            try:
-                res = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
-                if "Error" in res.stderr or "Exception" in res.stderr:
-                    console.print(f"[bold yellow][!] Potential crash or error on {act} with action {actn}[/]")
-            except Exception:
-                pass
-    console.print("[bold green]✓ Intent fuzzing sequence completed.[/]")
+            # Test 1: Clean launch without extras
+            total_tests += 1
+            out, err, rc = _run_adb(["shell", "am", "start", "-a", actn, "-n", component], device_id)
+
+            status = "[green]✓ OK[/]"
+            if rc != 0 or "Error" in err or "Exception" in err:
+                status = "[bold red]⚠ CRASH/ERR[/]"
+                vulnerable_hits += 1
+
+            results_table.add_row(act, actn, "None (Base)", status)
+
+            # Test 2: Fuzz with malicious/edge-case extra arguments
+            for key, val in fuzz_payloads:
+                total_tests += 1
+                cmd_args = ["shell", "am", "start", "-a", actn, "-n", component, "--es", key, val]
+                out, err, rc = _run_adb(cmd_args, device_id)
+
+                payload_status = "[green]✓ Handled[/]"
+                if rc != 0 or "Error" in err or "Exception" in err or "SecurityException" in out:
+                    payload_status = "[bold yellow]⚠ EXCEPTION[/]"
+                    vulnerable_hits += 1
+
+                results_table.add_row(act, actn, f"{key}={val[:10]}...", payload_status)
+                time.sleep(0.1)  # Prevent flooding adb daemon too rapidly
+
+    console.print(results_table)
+
+    console.print(Panel(
+        f"[bold green]✓ Intent Fuzzing Completed Successfully![/]\n"
+        f"  Total Combinations Tested: [bold cyan]{total_tests}[/]\n"
+        f"  Potential Exceptions/Errors Logged: [bold red]{vulnerable_hits}[/]",
+        title="[bold]Fuzzing Summary Report[/]",
+        border_style="green"
+    ))
