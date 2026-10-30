@@ -41,7 +41,7 @@ Aadi is developed by Aadi / Aadi for authorized Android security assessment, edu
 
 ## 🖼️ Preview
 
-![Aadi Preview](assets/aadi-preview.png)
+![Aadi Preview](assets/aadi-preview.jpg)
 
 > Add your screenshot as `assets/aadi-preview.png`.
 
