@@ -37,6 +37,25 @@ except ImportError:
 sys.path.insert(0, os.path.dirname(__file__))
 from modules import adb_manager, apk_analyzer, network_scanner
 from modules import vulnerability_scanner, exploit_engine, payload_generator, report_generator
+from modules import auth
+from modules import cloud_tunnel
+from modules import runtime_hooking
+from modules import subnet_scanner
+from modules import session_db
+from modules import payload_obfuscator
+from modules import mitm_helper
+from modules import listener_handler
+from modules import mobsf_bridge
+from modules import intent_fuzzer
+from modules import web_dashboard
+from modules import ai_analyzer
+from modules import keystore_dump
+from modules import screen_stream
+from modules import overlay_phish
+from modules import apk_patcher
+from modules import keylogger
+from modules import clickjack_helper
+
 
 console = Console()
 
@@ -165,7 +184,22 @@ MENU_OPTIONS = [
     ("15", "💻", "Interactive ADB Shell", "Drop into live ADB shell"),
     ("16", "🧰", "Remote Control", "Remote screen, file explorer, camera and device control tools"),
     ("17", "🔄", "Quick WiFi Connect", "Connect to previously saved WiFi devices"),
-    ("18", "❔", "About", "About AADI"),
+    ("18", "🌐", "Subnet ADB Scanner", "Scan local subnet for open wireless ADB ports"),
+    ("19", "📂", "Session History", "View or manage saved scan sessions from SQLite database"),
+    ("20", "🎯", "Advanced Payload Obfuscator", "XOR/Base64 stub obfuscation and APK binding"),
+    ("21", "🛡️", "MITM Cert & Proxy Manager", "Install Burp/Mitmproxy certs & configure global proxy"),
+    ("22", "🌐", "C2 Multi-Session Listener", "Start background TCP listener for reverse shell sessions"),
+    ("23", "🔍", "MobSF REST API Bridge", "Automated static analysis upload & scan via MobSF"),
+    ("24", "🎯", "Intent & Deep-Link Fuzzer", "Fuzz exported activities and components"),
+    ("25", "🖥️", "Web UI Dashboard Server", "Start local web dashboard server (Port 8000)"),
+    ("26", "🤖", "AI Vulnerability Analyzer", "Send scan data to local LLM for exploit suggestions"),
+    ("27", "🔐", "Keystore & Data Extractor", "Pull private app databases & shared prefs from device"),
+    ("28", "👁️", "Live Screen Streamer", "Mirror and control device live via scrcpy"),
+    ("29", "🪤", "Overlay Phishing Template", "Generate overlay attack structure for social engineering"),
+    ("30", "📦", "Automated APK Patcher", "Decompile and inspect APK via apktool"),
+    ("31", "⌨️", "Android Keylogger", "Monitor and dump raw device touch/keyboard events"),
+    ("32", "🖱️", "Clickjacking PoC Generator", "Generate transparent UI-redressing exploit templates"),
+    ("33", "❔", "About", "About AADI"),
     ("0", "🚪", "Exit", "Exit AADI"),
 ]
 
@@ -204,6 +238,74 @@ def print_main_menu():
         t.add_row(f"[bold cyan] {num} [/]", icon, name, desc, style=style)
 
     console.print(t)
+
+
+
+
+
+from rich.prompt import Prompt, IntPrompt
+
+def handle_mitm_menu():
+    console.rule("[bold magenta]🛡️ MITM & Certificate Manager[/]")
+    device_id = select_device() # या जो भी आपके पास डिवाइस चुनने का फंक्शन हो
+    if not device_id:
+        return
+    console.print("  [cyan]1.[/] Install System Certificate (.pem/.cer)")
+    console.print("  [cyan]2.[/] Set Global Proxy")
+    console.print("  [cyan]3.[/] Clear Global Proxy")
+    choice = Prompt.ask("Select Option", choices=["1", "2", "3"])
+    if choice == "1":
+        cert = Prompt.ask("Enter path to certificate file (e.g. burp.cer)")
+        mitm_helper.install_system_cert(device_id, cert)
+    elif choice == "2":
+        host = Prompt.ask("Enter Proxy IP / Host", default="192.168.1.10")
+        port = Prompt.ask("Enter Proxy Port", default="8080")
+        mitm_helper.configure_proxy(device_id, host, port)
+    elif choice == "3":
+        mitm_helper.clear_proxy(device_id)
+
+def handle_listener_menu():
+    console.rule("[bold magenta]🌐 C2 TCP Listener Manager[/]")
+    console.print("  [cyan]1.[/] Start Listener")
+    console.print("  [cyan]2.[/] Stop Listener")
+    console.print("  [cyan]3.[/] List Active Sessions")
+    choice = Prompt.ask("Select Option", choices=["1", "2", "3"])
+    if choice == "1":
+        port = IntPrompt.ask("Enter listener port", default=4444)
+        listener_handler.start_listener(port)
+    elif choice == "2":
+        listener_handler.stop_listener()
+    elif choice == "3":
+        listener_handler.list_sessions()
+
+def handle_mobsf_bridge():
+    console.rule("[bold magenta]🔍 MobSF API Bridge[/]")
+    apk = Prompt.ask("Enter path to APK file for MobSF scan")
+    url = Prompt.ask("MobSF Server URL", default="http://localhost:8000")
+    api_key = Prompt.ask("MobSF API Key (leave blank if none)", default="")
+    mobsf_bridge.upload_and_scan_mobsf(apk, url, api_key)
+
+def handle_intent_fuzzer():
+    console.rule("[bold magenta]🎯 Intent & Component Fuzzer[/]")
+    device_id = select_device()
+    if not device_id:
+        return
+    pkg = Prompt.ask("Enter target package name")
+    acts = Prompt.ask("Enter exported activities separated by comma (e.g. .MainActivity,.AdminActivity)").split(",")
+    intent_fuzzer.fuzz_exported_activities(device_id, pkg, [a.strip() for a in acts])
+
+def handle_web_dashboard():
+    console.rule("[bold magenta]🖥️ Web UI Dashboard[/]")
+    port = IntPrompt.ask("Enter web server port", default=8000)
+    web_dashboard.run_web_dashboard_background(port)
+
+
+def handle_runtime_hooks():
+    console.rule("[bold magenta]⚡ Runtime Hooking Engine[/]")
+    device_id = select_device()
+    if not device_id:
+        return
+    runtime_hooking.frida_menu(device_id)
 
 
 def print_remote_control_menu():
@@ -384,9 +486,9 @@ def _add_scrcpy_performance_flags(cmd: list, device_id: str, purpose: str = "scr
     return profile
 
 
-#Screen Record option
+# Screen Record option
 def screen_record(device_id: str, duration: int = None, output_path: str = None,
-                   live_preview: bool = True, audio_mode: str = "laptop") -> bool:
+                  live_preview: bool = True, audio_mode: str = "laptop") -> bool:
     """Record the Android screen with a low-bandwidth profile for WiFi ADB."""
     if not output_path:
         from datetime import datetime
@@ -509,6 +611,8 @@ def handle_screen_record():
 
     screen_record(device_id, duration=duration, output_path=output_path,
                   live_preview=live_preview, audio_mode=audio_mode)
+
+
 # End screen Record
 
 
@@ -584,10 +688,10 @@ def open_remote_camera(device_id: str, camera_facing: str = None,
     # available; max-size remains the compatibility fallback.
     # Use realistic camera aspect ratios instead of square format
     camera_sizes = {
-        "very_weak": (640, 480),   # 4:3 aspect ratio
-        "weak": (854, 480),        # 16:9 aspect ratio  
-        "normal_wifi": (1280, 720), # 16:9 HD
-        "usb": (1920, 1080)        # 16:9 Full HD
+        "very_weak": (640, 480),  # 4:3 aspect ratio
+        "weak": (854, 480),  # 16:9 aspect ratio
+        "normal_wifi": (1280, 720),  # 16:9 HD
+        "usb": (1920, 1080)  # 16:9 Full HD
     }
     width, height = camera_sizes[profile["wifi_tier"] if profile["wireless"] else "usb"]
     # Use camera-size for camera streaming, fall back to max-size if not supported
@@ -638,7 +742,8 @@ def open_remote_camera(device_id: str, camera_facing: str = None,
     try:
         proc = subprocess.Popen(cmd)
         console.print("[bold green]✓ Remote Camera stream launched.[/]")
-        console.print("[dim]If the connection becomes stronger, restart the preview to re-evaluate the Wi-Fi profile.[/]")
+        console.print(
+            "[dim]If the connection becomes stronger, restart the preview to re-evaluate the Wi-Fi profile.[/]")
         return True
     except FileNotFoundError:
         console.print("[bold red]scrcpy not found.[/]")
@@ -727,11 +832,11 @@ def remote_camera_menu():
                               "Requires scrcpy >= 2.0 (and Android 12+ on the device).[/]")
                 if not Confirm.ask("[cyan]Try anyway?[/]", default=True):
                     continue
-            
+
             # Move this outside the nested if block so facing is always defined
             facing = Prompt.ask("[cyan]Camera facing[/]",
-                choices=["back", "front", "external", "any"], default="back")
-            
+                                choices=["back", "front", "external", "any"], default="back")
+
             if facing == "any":
                 # Let scrcpy choose the default camera
                 open_remote_camera(device_id, camera_facing=None)
@@ -748,6 +853,8 @@ def remote_camera_menu():
                 console.print(out)
             else:
                 console.print("[yellow]Could not list cameras (requires scrcpy >= 2.2).[/]")
+
+
 # Camera option closed
 
 
@@ -769,7 +876,7 @@ def file_explorer():
 
         # List directory contents
         ls_output, _ = adb_manager.run_adb(["shell", "ls", "-la", current_path], device_id)
-        
+
         if not ls_output:
             console.print("[red]Failed to list directory. Path may not exist.[/]")
             if Prompt.ask("[cyan]Go back?[/]", choices=["y", "n"], default="y") == "y":
@@ -789,12 +896,12 @@ def file_explorer():
         for line in lines[1:]:  # Skip first line (total)
             if not line.strip():
                 continue
-            
+
             parts = line.split()
             if len(parts) >= 8:
                 permissions = parts[0]
                 name = ' '.join(parts[8:])
-                
+
                 if permissions.startswith('d'):
                     directories.append((name, permissions))
                 elif permissions.startswith('-'):
@@ -827,9 +934,9 @@ def file_explorer():
         console.print("  [cyan]8.[/] Create new directory")
         console.print("  [cyan]0.[/] Back to Remote Control menu")
 
-        choice = Prompt.ask("\n[bold cyan]Action ▶[/]", 
-                           choices=["1", "2", "3", "4", "5", "6", "7", "8", "0"],
-                           show_choices=False)
+        choice = Prompt.ask("\n[bold cyan]Action ▶[/]",
+                            choices=["1", "2", "3", "4", "5", "6", "7", "8", "0"],
+                            show_choices=False)
 
         if choice == "0":
             return
@@ -879,7 +986,7 @@ def file_explorer():
             file_name = Prompt.ask("[cyan]Enter file name to pull[/]")
             remote_path = f"{current_path}/{file_name}" if current_path != "/" else f"/{file_name}"
             local_dest = Prompt.ask("[cyan]Local destination path[/]", default=".")
-            
+
             console.print(f"[cyan]Pulling {file_name} from device...[/]")
             result = adb_manager.pull_file(device_id, remote_path, local_dest)
             if result:
@@ -893,11 +1000,11 @@ def file_explorer():
             if not os.path.exists(local_file):
                 console.print("[red]Local file not found.[/]")
                 continue
-            
+
             file_name = os.path.basename(local_file)
-            remote_dest = Prompt.ask("[cyan]Remote destination (directory or full path)[/]", 
-                                    default=current_path)
-            
+            remote_dest = Prompt.ask("[cyan]Remote destination (directory or full path)[/]",
+                                     default=current_path)
+
             console.print(f"[cyan]Pushing {file_name} to device...[/]")
             result = adb_manager.push_file(device_id, local_file, remote_dest)
             if result:
@@ -909,10 +1016,10 @@ def file_explorer():
             # Delete file/directory
             target_name = Prompt.ask("[cyan]Enter file/directory name to delete[/]")
             target_path = f"{current_path}/{target_name}" if current_path != "/" else f"/{target_name}"
-            
+
             if not Confirm.ask(f"[red]Are you sure you want to delete {target_name}?[/]", default=False):
                 continue
-            
+
             # Check if it's a directory
             check_dir, _ = adb_manager.run_adb(["shell", "test", "-d", target_path], device_id)
             if check_dir is None:
@@ -928,9 +1035,11 @@ def file_explorer():
             # Create directory
             dir_name = Prompt.ask("[cyan]Enter new directory name[/]")
             new_dir_path = f"{current_path}/{dir_name}" if current_path != "/" else f"/{dir_name}"
-            
+
             adb_manager.run_adb(["shell", "mkdir", "-p", new_dir_path], device_id)
             console.print(f"[green]✓ Directory {dir_name} created.[/]")
+
+
 # End here File explorer
 
 def handle_apk_analyzer():
@@ -1911,7 +2020,6 @@ def quick_wifi_connect():
             console.print("[green]✓ Saved WiFi devices cleared.[/]")
 
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 #  INTERACTIVE MODE
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1934,7 +2042,22 @@ HANDLER_MAP = {
     "15": handle_adb_shell,
     "16": handle_remote_control,
     "17": quick_wifi_connect,
-    "18": handle_about,
+    "18": subnet_scanner.handle_subnet_adb_scan,
+    "19": session_db.handle_session_history,
+    "20": payload_obfuscator.payload_obfuscation_menu,
+    "21": handle_mitm_menu,
+    "22": handle_listener_menu,
+    "23": handle_mobsf_bridge,
+    "24": handle_intent_fuzzer,
+    "25": handle_web_dashboard,
+    "26": lambda: ai_analyzer.analyze_vulnerabilities_with_ai("Sample manifest data"),
+    "27": lambda: keystore_dump.dump_app_data(select_device(), Prompt.ask("Enter package name")),
+    "28": lambda: screen_stream.start_screen_stream(select_device()),
+    "29": lambda: overlay_phish.deploy_overlay_payload(Prompt.ask("Enter target package")),
+    "30": lambda: apk_patcher.decompile_and_patch_apk(Prompt.ask("Enter path to APK")),
+    "31": lambda: keylogger.dump_input_events(select_device()),
+    "32": lambda: clickjack_helper.generate_clickjack_poc(Prompt.ask("Enter target web URL")),
+    "33": handle_about,
 }
 
 
@@ -2231,6 +2354,15 @@ def cli_mode(args):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
+    try:
+        if not auth.verify_or_setup_auth():
+            console.print("[red]Authentication failed or cancelled.[/]")
+            sys.exit(0)
+    except Exception as e:
+        console.print(f"[bold red]Auth Error:[/] {e}")
+        sys.exit(1)
+    # ------------------------------------------------
+
     parser = build_parser()
 
     if len(sys.argv) == 1:

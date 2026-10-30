@@ -66,7 +66,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     font-size: 2.5rem; font-weight: 700; letter-spacing: 4px;
     background: linear-gradient(135deg, #8b5cf6, #ec4899, #f97316);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    text-shadow: none;
   }}
   .logo span {{ font-size: 1rem; color: var(--dim); display: block; font-family: 'JetBrains Mono'; margin-top: 4px; }}
   .meta {{ text-align: right; color: var(--dim); font-family: 'JetBrains Mono'; font-size: 0.8rem; }}
@@ -99,9 +98,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     font-size: 0.75rem; letter-spacing: 1px; padding: 0.75rem 1rem; text-align: left;
     border-bottom: 1px solid var(--border);
   }}
-  tbody tr {{
-    border-bottom: 1px solid var(--border); transition: background 0.2s;
-  }}
+  tbody tr {{ border-bottom: 1px solid var(--border); transition: background 0.2s; }}
   tbody tr:hover {{ background: var(--surface2); }}
   td {{ padding: 0.8rem 1rem; font-family: 'JetBrains Mono'; font-size: 0.85rem; }}
   .badge {{
@@ -121,8 +118,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .finding-fix {{ color: #2ecc71; font-size: 0.8rem; margin-top: 0.5rem; }}
   .cve-link {{ color: var(--accent); text-decoration: none; }}
   .cve-link:hover {{ color: var(--accent2); text-decoration: underline; }}
-  .tag {{ display: inline-block; background: rgba(139,92,246,0.15); color: var(--accent);
-           border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; margin: 2px; font-family: 'JetBrains Mono'; }}
   footer {{
     text-align: center; color: var(--dim); padding: 2rem;
     border-top: 1px solid var(--border); font-size: 0.8rem; font-family: 'JetBrains Mono';
@@ -196,13 +191,11 @@ def generate_html_report(data: dict, output: str = "aadi_report.html") -> str:
     report_id = f"AADI-{int(time.time())}"
     rems = _remediations()
 
-    # Count severities
     counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
     for f in findings:
         sev = f.get("severity", "INFO").upper()
         counts[sev] = counts.get(sev, 0) + 1
 
-    # Build findings section
     findings_html = '<section><div class="section-title">🚨 Security Findings</div>'
     sorted_findings = sorted(findings, key=lambda x: SEV_ORDER.get(x.get("severity", "INFO").upper(), 99))
     for f in sorted_findings:
@@ -223,7 +216,6 @@ def generate_html_report(data: dict, output: str = "aadi_report.html") -> str:
         </div>"""
     findings_html += "</section>"
 
-    # Permissions section
     perms = data.get("permissions", [])
     perms_html = ""
     if perms:
@@ -232,7 +224,6 @@ def generate_html_report(data: dict, output: str = "aadi_report.html") -> str:
             perms_html += f'<tr><td>{p["permission"]}</td><td>{_badge(p["severity"])}</td></tr>'
         perms_html += "</tbody></table></section>"
 
-    # URLs section
     urls = data.get("urls", [])
     urls_html = ""
     if urls:
@@ -241,7 +232,6 @@ def generate_html_report(data: dict, output: str = "aadi_report.html") -> str:
             urls_html += f"<tr><td>{u}</td></tr>"
         urls_html += "</tbody></table></section>"
 
-    # Secrets section
     secrets = data.get("secrets", [])
     secrets_html = ""
     if secrets:

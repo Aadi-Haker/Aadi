@@ -6,9 +6,6 @@ Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 import subprocess
 import os
 import base64
-import random
-import string
-import time
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -182,9 +179,9 @@ def obfuscate_payload(payload: str, method: str = "base64") -> str:
 
 
 def payload_menu():
-    """Display payload generator menu."""
+    """Display payload generator module menu."""
     options = [
-        ("1", "Generate APK (msfvenom)"),
+        ("1", "Generate APK (msfvenopm)"),
         ("2", "Generate Intent Payload"),
         ("3", "Reverse Shell One-Liners"),
         ("4", "ADB Exploitation Script"),

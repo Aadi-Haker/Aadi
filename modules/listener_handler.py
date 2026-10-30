@@ -1,0 +1,87 @@
+"""
+Aadi — Multi-Session C2 TCP Listener
+Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
+"""
+
+import socket
+import threading
+from rich.console import Console
+from rich.table import Table
+from rich import box
+
+console = Console()
+active_connections = {}
+listener_thread = None
+server_socket = None
+is_running = False
+
+def handle_client(client_socket, addr):
+    """Handle individual incoming client shell connection."""
+    client_id = f"{addr[0]}:{addr[1]}"
+    active_connections[client_id] = client_socket
+    console.print(f"\n[bold green][+] New reverse shell session established from {client_id}![/]")
+
+    try:
+        while is_running:
+            data = client_socket.recv(4096)
+            if not data:
+                break
+            # Output handler if needed
+    except Exception:
+        pass
+    finally:
+        client_socket.close()
+        if client_id in active_connections:
+            del active_connections[client_id]
+        console.print(f"\n[bold red][-] Session {client_id} disconnected.[/]")
+
+def start_listener(port: int = 4444):
+    """Start background TCP listener socket."""
+    global server_socket, is_running, listener_thread
+    if is_running:
+        console.print("[yellow][!] C2 Listener is already running.[/]")
+        return
+
+    try:
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_socket.bind(("0.0.0.0", port))
+        server_socket.listen(5)
+        is_running = True
+
+        def server_loop():
+            while is_running:
+                try:
+                    client, addr = server_socket.accept()
+                    t = threading.Thread(target=handle_client, args=(client, addr), daemon=True)
+                    t.start()
+                except Exception:
+                    break
+
+        listener_thread = threading.Thread(target=server_loop, daemon=True)
+        listener_thread.start()
+        console.print(f"[bold green]✓ C2 Multi-Session Listener started on port {port}[/]")
+    except Exception as e:
+        console.print(f"[bold red]✗ Failed to start listener:[/] {e}")
+
+def stop_listener():
+    """Stop the C2 listener."""
+    global is_running, server_socket
+    is_running = False
+    if server_socket:
+        server_socket.close()
+    console.print("[bold yellow][*] C2 Listener stopped.[/]")
+
+def list_sessions():
+    """Display active reverse shell sessions."""
+    t = Table(title="[bold cyan]Active C2 Sessions[/]", box=box.ROUNDED, border_style="cyan")
+    t.add_column("Session ID / Address", style="bold white")
+    t.add_column("Status", style="green")
+
+    if not active_connections:
+        t.add_row("No active sessions", "Idle")
+    else:
+        for cid in active_connections.keys():
+            t.add_row(cid, "Connected (Interactive)")
+
+    console.print(t)
