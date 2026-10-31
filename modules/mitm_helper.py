@@ -1,11 +1,12 @@
 """
-Aadi — One-Click MITM Proxy & Certificate Installer (Enhanced & Robust)
+Aadi — One-Click MITM Proxy & Certificate Installer (Optimized, Robust & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import os
 import shutil
 import subprocess
+from typing import List, Tuple, Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm
@@ -13,8 +14,8 @@ from rich.prompt import Confirm
 console = Console()
 
 
-def _run_adb(args: list, device_id: str = None, capture: bool = True):
-    """Helper function to execute ADB commands safely."""
+def _run_adb(args: List[str], device_id: Optional[str] = None, capture: bool = True) -> Tuple[str, str, int]:
+    """Helper function to execute ADB commands safely with timeout and error handling."""
     cmd = ["adb"]
     if device_id:
         cmd += ["-s", device_id]
@@ -22,18 +23,20 @@ def _run_adb(args: list, device_id: str = None, capture: bool = True):
     try:
         res = subprocess.run(cmd, capture_output=capture, text=True, timeout=15)
         return res.stdout.strip(), res.stderr.strip(), res.returncode
+    except subprocess.TimeoutExpired:
+        return "", "Process timed out", -2
     except Exception as e:
         return "", str(e), -1
 
 
-def install_system_cert(device_id: str, cert_path: str):
+def install_system_cert(device_id: str, cert_path: str) -> bool:
     """Push Burp/Mitmproxy cert to Android system trust store (/system/etc/security/cacerts/)."""
     if not device_id:
         console.print("[bold red]✗ No device selected. Please connect a device first.[/]")
         return False
 
-    if not os.path.exists(cert_path):
-        console.print(f"[bold red]✗ Certificate file not found:[/] {cert_path}")
+    if not cert_path or not os.path.exists(cert_path):
+        console.print(f"[bold red]✗ Certificate file not found or invalid path:[/] {cert_path}")
         return False
 
     # Check for OpenSSL dependency
@@ -58,7 +61,7 @@ def install_system_cert(device_id: str, cert_path: str):
     try:
         console.print("[cyan][*] Requesting ADB root access and remount...[/]")
         _run_adb(["root"], device_id)
-        _, remount_err, remount_rc = _run_adb(["remount"], device_id)
+        _, _, remount_rc = _run_adb(["remount"], device_id)
 
         if remount_rc != 0:
             console.print("[yellow]⚠ Standard 'adb remount' failed. /system partition may be protected.[/]")
@@ -70,7 +73,8 @@ def install_system_cert(device_id: str, cert_path: str):
         res = subprocess.run(openssl_cmd, capture_output=True, text=True)
 
         if res.returncode != 0 or not res.stdout.strip():
-            console.print(f"[bold red]✗ Failed to calculate certificate hash using OpenSSL:[/] {res.stderr}")
+            err_msg = res.stderr.strip() if res.stderr else "Unknown OpenSSL error"
+            console.print(f"[bold red]✗ Failed to calculate certificate hash using OpenSSL:[/] {err_msg}")
             return False
 
         cert_hash = res.stdout.strip().split("\n")[0]
@@ -90,6 +94,8 @@ def install_system_cert(device_id: str, cert_path: str):
 
         if move_rc != 0:
             console.print(f"[bold red]✗ Failed to move certificate to /system/etc/security/cacerts/:[/] {move_err}")
+            # Cleanup temp file on failure
+            _run_adb(["shell", f"rm -f /sdcard/{target_name}"], device_id)
             return False
 
         # Set strict permissions (chmod 644)
@@ -108,10 +114,14 @@ def install_system_cert(device_id: str, cert_path: str):
         return False
 
 
-def configure_proxy(device_id: str, proxy_host: str, proxy_port: str):
+def configure_proxy(device_id: str, proxy_host: str, proxy_port: str) -> bool:
     """Configure global HTTP proxy on target Android device."""
     if not device_id:
         console.print("[bold red]✗ No device selected.[/]")
+        return False
+
+    if not proxy_host or not proxy_port:
+        console.print("[bold red]✗ Proxy host and port cannot be empty.[/]")
         return False
 
     proxy_str = f"{proxy_host}:{proxy_port}"
@@ -126,7 +136,7 @@ def configure_proxy(device_id: str, proxy_host: str, proxy_port: str):
         return False
 
 
-def clear_proxy(device_id: str):
+def clear_proxy(device_id: str) -> bool:
     """Remove global HTTP proxy configuration."""
     if not device_id:
         console.print("[bold red]✗ No device selected.[/]")

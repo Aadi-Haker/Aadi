@@ -8,6 +8,7 @@ import re
 import os
 import time
 import json
+from typing import List, Tuple, Optional, Dict, Any
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -16,8 +17,8 @@ from rich import box
 console = Console()
 
 
-def run_adb(args: list, device_id: str = None, capture: bool = True):
-    """Run an adb command and return stdout."""
+def run_adb(args: List[str], device_id: Optional[str] = None, capture: bool = True) -> Tuple[Optional[str], int]:
+    """Run an adb command and return stdout and returncode."""
     cmd = ["adb"]
     if device_id:
         cmd += ["-s", device_id]
@@ -29,9 +30,11 @@ def run_adb(args: list, device_id: str = None, capture: bool = True):
         return None, -1
     except subprocess.TimeoutExpired:
         return "TIMEOUT", -2
+    except Exception as e:
+        return str(e), -3
 
 
-def _extract_device_ip(text: str) -> str:
+def _extract_device_ip(text: Optional[str]) -> Optional[str]:
     """Extract valid local network IP address from ADB output, avoiding loopback."""
     if not text:
         return None
@@ -39,7 +42,6 @@ def _extract_device_ip(text: str) -> str:
     # Match standard IPv4 addresses
     matches = re.findall(r"\b(?:inet\s+|src\s+)(\d+\.\d+\.\d+\.\d+)", text)
     for ip in matches:
-        # Skip localhost/loopback
         if not ip.startswith("127."):
             return ip
 
@@ -52,8 +54,8 @@ def _extract_device_ip(text: str) -> str:
     return None
 
 
-def run_adb_global(args: list, capture: bool = True):
-    """Run a global adb command without selecting a device."""
+def run_adb_global(args: List[str], capture: bool = True) -> Tuple[Optional[str], int]:
+    """Run a global adb command without selecting a specific device."""
     try:
         result = subprocess.run(["adb"] + args, capture_output=capture, text=True, timeout=30)
         output = "\n".join(part for part in [result.stdout.strip(), result.stderr.strip()] if part)
@@ -62,23 +64,25 @@ def run_adb_global(args: list, capture: bool = True):
         return None, -1
     except subprocess.TimeoutExpired:
         return "TIMEOUT", -2
+    except Exception as e:
+        return str(e), -3
 
 
-def check_adb():
-    """Check if adb is installed."""
+def check_adb() -> bool:
+    """Check if adb is installed and operational."""
     out, rc = run_adb(["version"])
-    if rc == -1:
+    if rc == -1 or not out:
         console.print("[bold red]✗ ADB not found![/] Install Android Debug Bridge first.", style="red")
         return False
     console.print(f"[green]✓ ADB found:[/] {out.splitlines()[0]}")
     return True
 
 
-def list_devices():
+def list_devices() -> List[Dict[str, str]]:
     """List all connected Android devices."""
     out, rc = run_adb(["devices", "-l"])
-    if out is None:
-        console.print("[red]ADB not available.[/]")
+    if out is None or rc != 0:
+        console.print("[red]ADB not available or failed to list devices.[/]")
         return []
 
     lines = out.strip().splitlines()
@@ -109,8 +113,8 @@ def list_devices():
     return devices
 
 
-def device_info(device_id: str):
-    """Gather comprehensive device info."""
+def device_info(device_id: str) -> None:
+    """Gather and display comprehensive device info."""
     props = {
         "Brand": "ro.product.brand",
         "Model": "ro.product.model",
@@ -136,8 +140,8 @@ def device_info(device_id: str):
     console.print(table)
 
 
-def list_packages(device_id: str, pkg_filter: str = "all"):
-    """List installed packages."""
+def list_packages(device_id: str, pkg_filter: str = "all") -> List[str]:
+    """List installed packages based on filter."""
     flags = {
         "all": [],
         "system": ["-s"],
@@ -145,8 +149,8 @@ def list_packages(device_id: str, pkg_filter: str = "all"):
         "disabled": ["-d"],
     }
     flag = flags.get(pkg_filter, [])
-    out, _ = run_adb(["shell", "pm", "list", "packages"] + flag, device_id)
-    if not out:
+    out, rc = run_adb(["shell", "pm", "list", "packages"] + flag, device_id)
+    if not out or rc != 0:
         console.print("[red]Could not fetch packages.[/]")
         return []
 
@@ -164,25 +168,31 @@ def list_packages(device_id: str, pkg_filter: str = "all"):
     return packages
 
 
-def dumpsys(device_id: str, service: str = "package"):
+def dumpsys(device_id: str, service: str = "package") -> Optional[str]:
     """Run dumpsys for a given service."""
     console.print(f"[cyan]Running dumpsys {service}...[/]")
-    out, _ = run_adb(["shell", "dumpsys", service], device_id)
-    if out:
+    out, rc = run_adb(["shell", "dumpsys", service], device_id)
+    if out and rc == 0:
         console.print(Panel(out[:3000] + ("..." if len(out) > 3000 else ""),
                             title=f"[bold]dumpsys {service}[/]", border_style="cyan"))
-    return out
+        return out
+    console.print("[red]Failed to run dumpsys or empty output.[/]")
+    return None
 
 
-def capture_logcat(device_id: str, lines: int = 200):
+def capture_logcat(device_id: str, lines: int = 200) -> Optional[str]:
     """Capture last N lines of logcat and scan for sensitive security patterns."""
     console.print(f"[cyan]Capturing last {lines} lines of logcat...[/]")
-    out, _ = run_adb(["shell", f"logcat -d -t {lines}"], device_id)
+    out, rc = run_adb(["shell", f"logcat -d -t {lines}"], device_id)
+
+    if not out or out == "TIMEOUT" or rc != 0:
+        console.print("[red]✗ Failed to capture logcat or device unresponsive.[/]")
+        return None
+
     filename = f"aadi_logcat_{int(time.time())}.txt"
-    if out:
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(out)
-        console.print(f"[green]✓ Logcat saved to:[/] {filename}")
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(out)
+    console.print(f"[green]✓ Logcat saved to:[/] {filename}")
 
     # Highlight security-sensitive patterns
     patterns = ["password", "token", "secret", "api_key", "auth", "credential", "private", "bearer"]
@@ -201,35 +211,47 @@ def capture_logcat(device_id: str, lines: int = 200):
     return out
 
 
-def pull_file(device_id: str, remote_path: str, local_path: str = "."):
+def pull_file(device_id: str, remote_path: str, local_path: str = ".") -> bool:
     """Pull a file from device."""
     out, rc = run_adb(["pull", remote_path, local_path], device_id)
     if rc == 0:
         console.print(f"[green]✓ Pulled:[/] {remote_path} → {local_path}")
+        return True
     else:
-        console.print(f"[red]✗ Failed to pull {remote_path}[/]")
+        console.print(f"[red]✗ Failed to pull {remote_path}: {out}[/]")
+        return False
 
 
-def push_file(device_id: str, local_path: str, remote_path: str):
+def push_file(device_id: str, local_path: str, remote_path: str) -> bool:
     """Push a file to device."""
+    if not os.path.exists(local_path):
+        console.print(f"[red]✗ Local file not found:[/] {local_path}")
+        return False
+
     out, rc = run_adb(["push", local_path, remote_path], device_id)
     if rc == 0:
         console.print(f"[green]✓ Pushed:[/] {local_path} → {remote_path}")
+        return True
     else:
-        console.print(f"[red]✗ Failed to push {local_path}[/]")
+        console.print(f"[red]✗ Failed to push {local_path}: {out}[/]")
+        return False
 
 
-def take_screenshot(device_id: str):
-    """Take a screenshot and pull it."""
+def take_screenshot(device_id: str) -> Optional[str]:
+    """Take a screenshot and pull it to local machine."""
     remote = "/sdcard/aadi_screen.png"
-    local = "aadi_screen.png"
-    run_adb(["shell", "screencap", "-p", remote], device_id)
-    pull_file(device_id, remote, local)
+    local = f"aadi_screen_{int(time.time())}.png"
+    _, rc = run_adb(["shell", "screencap", "-p", remote], device_id)
+    if rc != 0:
+        console.print("[red]✗ Failed to capture screenshot on device.[/]")
+        return None
+
+    success = pull_file(device_id, remote, local)
     run_adb(["shell", "rm", remote], device_id)
-    return local
+    return local if success else None
 
 
-def enable_adb_wifi(device_id: str, port: int = 5555):
+def enable_adb_wifi(device_id: str, port: int = 5555) -> Tuple[Optional[str], int]:
     """Enable ADB over WiFi."""
     console.print(f"[cyan]Enabling ADB over WiFi on port {port}...[/]")
     run_adb(["shell", f"setprop service.adb.tcp.port {port}"], device_id)
@@ -244,7 +266,7 @@ def enable_adb_wifi(device_id: str, port: int = 5555):
         return None, port
 
 
-def _get_wifi_ip(device_id: str) -> str:
+def _get_wifi_ip(device_id: str) -> Optional[str]:
     wlan_out, _ = run_adb(["shell", "ip addr show wlan0"], device_id)
     ip = _extract_device_ip(wlan_out)
     if ip:
@@ -258,16 +280,17 @@ def connect_wifi(ip: str, port: int = 5555) -> bool:
     """Connect to a device via WiFi using its IP address."""
     console.print(f"[cyan]Connecting to {ip}:{port}...[/]")
     out, rc = run_adb(["connect", f"{ip}:{port}"], capture=True)
-    if rc == 0 and "connected" in out.lower():
+    if rc == 0 and out and "connected" in out.lower():
         console.print(f"[green]✓ Connected to {ip}:{port}[/]")
         return True
     else:
         console.print(f"[red]✗ Failed to connect to {ip}:{port}[/]")
-        console.print(f"[dim]{out}[/]")
+        if out:
+            console.print(f"[dim]{out}[/]")
         return False
 
 
-def auto_adb_wifi_connect(device_id: str, port: int = 5555):
+def auto_adb_wifi_connect(device_id: str, port: int = 5555) -> bool:
     """Automatically switch USB ADB to WiFi mode and connect to the device safely."""
     if not device_id:
         console.print(Panel(
@@ -320,16 +343,18 @@ def auto_adb_wifi_connect(device_id: str, port: int = 5555):
         border_style="green",
     ))
 
-    # Safely save WiFi connection info to a file with JSON error handling
+    # Fixed Path: Saves wifi_devices.json right in the script's directory safely
     try:
-        wifi_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "wifi_devices.json")
+        script_dir = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd()
+        wifi_file = os.path.join(script_dir, "wifi_devices.json")
+
         wifi_data = {}
         if os.path.exists(wifi_file):
             try:
                 with open(wifi_file, "r", encoding="utf-8") as f:
                     wifi_data = json.load(f)
             except json.JSONDecodeError:
-                wifi_data = {}  # Overwrite corrupted JSON safely
+                wifi_data = {}
 
         wifi_data[f"{ip}:{port}"] = {
             "ip": ip,
@@ -346,18 +371,21 @@ def auto_adb_wifi_connect(device_id: str, port: int = 5555):
     return True
 
 
-def shell_cmd(device_id: str, cmd: str):
+def shell_cmd(device_id: str, cmd: str) -> Optional[str]:
     """Execute a raw shell command."""
     out, rc = run_adb(["shell", cmd], device_id)
     console.print(Panel(out or "(no output)", title=f"[dim]$ {cmd}[/]", border_style="dim"))
-    return out
+    return out if rc == 0 else None
 
 
-def interactive_shell(device_id: str):
+def interactive_shell(device_id: str) -> None:
     """Drop into an interactive ADB shell."""
     console.print("[bold yellow]Dropping into ADB shell. Type 'exit' to return.[/]")
     cmd = ["adb"]
     if device_id:
         cmd += ["-s", device_id]
     cmd += ["shell"]
-    subprocess.call(cmd)
+    try:
+        subprocess.call(cmd)
+    except Exception as e:
+        console.print(f"[bold red]Error running interactive shell:[/] {e}")

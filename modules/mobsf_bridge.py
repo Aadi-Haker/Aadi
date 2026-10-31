@@ -1,21 +1,22 @@
 """
-Aadi — MobSF REST API Bridge Module (Enhanced & Automated)
+Aadi — MobSF REST API Bridge Module (Optimized, Robust & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import requests
 import os
 import json
+from typing import Optional, Dict, Any
 from rich.console import Console
 from rich.panel import Panel
 
 console = Console()
 
 
-def upload_and_scan_mobsf(apk_path: str, mobsf_url: str = "http://localhost:8000", api_key: str = ""):
-    """Upload APK to MobSF, trigger scan, and fetch vulnerability summary."""
-    if not os.path.exists(apk_path):
-        console.print(f"[bold red]✗ APK file not found:[/] {apk_path}")
+def upload_and_scan_mobsf(apk_path: str, mobsf_url: str = "http://localhost:8000", api_key: str = "") -> bool:
+    """Upload APK to MobSF, trigger scan, and fetch vulnerability summary with robust error handling."""
+    if not apk_path or not os.path.isfile(apk_path):
+        console.print(f"[bold red]✗ APK file not found or invalid path:[/] {apk_path}")
         return False
 
     headers = {"Authorization": api_key} if api_key else {}
@@ -40,6 +41,10 @@ def upload_and_scan_mobsf(apk_path: str, mobsf_url: str = "http://localhost:8000
             file_hash = res_json.get("hash")
             app_name = res_json.get("file_name")
             scan_type = res_json.get("scan_type", "apk")
+
+            if not file_hash:
+                console.print("[bold red]✗ Upload succeeded but failed to retrieve file hash from MobSF.[/]")
+                return False
 
             console.print(f"[bold green]✓ Upload successful! Hash:[/] [cyan]{file_hash}[/]")
 
@@ -75,14 +80,19 @@ def upload_and_scan_mobsf(apk_path: str, mobsf_url: str = "http://localhost:8000
                 console.print(f"[dim]Full report available on MobSF web UI at: {mobsf_url}/view/{file_hash}[/]")
                 return True
             else:
-                console.print(f"[bold red]✗ Scan failed with status {scan_res.status_code}:[/] {scan_res.text}")
+                err_text = scan_res.text[:300] if scan_res.text else "No response body"
+                console.print(f"[bold red]✗ Scan failed with status {scan_res.status_code}:[/] {err_text}")
                 return False
         else:
-            console.print(f"[bold red]✗ Upload failed with status {response.status_code}:[/] {response.text}")
+            err_text = response.text[:300] if response.text else "No response body"
+            console.print(f"[bold red]✗ Upload failed with status {response.status_code}:[/] {err_text}")
             return False
 
     except requests.exceptions.ConnectionError:
         console.print(f"[bold red]✗ Connection error: Could not reach MobSF server at {mobsf_url}. Is it running?[/]")
+        return False
+    except requests.exceptions.Timeout:
+        console.print("[bold red]✗ Request timed out while communicating with MobSF server.[/]")
         return False
     except Exception as e:
         console.print(f"[bold red]✗ An unexpected error occurred:[/] {e}")

@@ -1,17 +1,19 @@
 """
-Aadi — Fake Login Phishing & Overlay Attack Module (Enhanced)
+Aadi — Fake Login Phishing & Overlay Attack Module (Enhanced, Robust & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import subprocess
 import time
+from typing import List, Tuple, Optional
 from rich.console import Console
 from rich.panel import Panel
 
 console = Console()
 
-def _run_adb(args: list, device_id: str = None):
-    """Helper function to execute ADB commands safely."""
+
+def _run_adb(args: List[str], device_id: Optional[str] = None) -> Tuple[str, str, int]:
+    """Helper function to execute ADB commands safely with timeout and error handling."""
     cmd = ["adb"]
     if device_id:
         cmd += ["-s", device_id]
@@ -19,13 +21,16 @@ def _run_adb(args: list, device_id: str = None):
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
         return res.stdout.strip(), res.stderr.strip(), res.returncode
+    except subprocess.TimeoutExpired:
+        return "", "Process timed out", -2
     except Exception as e:
         return "", str(e), -1
 
-def deploy_overlay_payload(device_id: str, target_package: str, main_activity: str = ""):
+
+def deploy_overlay_payload(device_id: Optional[str], target_package: str, main_activity: str = "") -> bool:
     """Simulate overlay attack deployment and launch target application to capture interface focus."""
-    if not target_package:
-        console.print("[bold red]✗ Target package name is required![/]")
+    if not target_package or not target_package.strip():
+        console.print("[bold red]✗ Target package name is required and cannot be empty![/]")
         return False
 
     console.print(Panel(
@@ -45,7 +50,7 @@ def deploy_overlay_payload(device_id: str, target_package: str, main_activity: s
         console.print(f"[green]✓ Target package verified on device.[/]")
 
     # If main activity is provided, launch it to bring it to foreground
-    if main_activity:
+    if main_activity and main_activity.strip():
         component = f"{target_package}/{main_activity}" if not main_activity.startswith(".") else f"{target_package}{main_activity}"
         console.print(f"[cyan][*] Bringing target activity to foreground: {component}[/]")
         _, err, launch_rc = _run_adb(["shell", "am", "start", "-n", component], device_id)

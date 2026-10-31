@@ -8,6 +8,7 @@ import os
 import re
 import hashlib
 import time
+from typing import Dict, List, Any, Optional
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -62,8 +63,8 @@ SECRET_PATTERNS = [
 ]
 
 
-def _file_hash(path: str) -> dict:
-    """Compute MD5, SHA1, and SHA256 hashes of the APK file."""
+def _file_hash(path: str) -> Dict[str, str]:
+    """Compute MD5, SHA1, and SHA256 hashes of the APK file securely."""
     result = {}
     try:
         for algo in ["md5", "sha1", "sha256"]:
@@ -71,13 +72,14 @@ def _file_hash(path: str) -> dict:
             with open(path, "rb") as f:
                 for chunk in iter(lambda: f.read(8192), b""):
                     h.update(chunk)
-            result[algo.upper()] = h.hexdigned() if hasattr(h, 'hexdigned') else h.hexdigest()
+            # Fixed typo: hexdigned() -> hexdigest()
+            result[algo.upper()] = h.hexdigest()
     except Exception as e:
         console.print(f"[yellow]⚠ Error computing hashes: {e}[/]")
     return result
 
 
-def analyze_apk(apk_path: str) -> dict:
+def analyze_apk(apk_path: str) -> Dict[str, Any]:
     """Perform static analysis on the target APK file."""
     findings = {
         "path": apk_path,
@@ -97,8 +99,8 @@ def analyze_apk(apk_path: str) -> dict:
         "vulnerabilities": [],
     }
 
-    if not os.path.isfile(apk_path):
-        console.print(f"[bold red]✗ File not found: {apk_path}[/]")
+    if not apk_path or not os.path.isfile(apk_path):
+        console.print(f"[bold red]✗ File not found or invalid path: {apk_path}[/]")
         return findings
 
     console.print(Panel(f"[bold cyan]Analyzing APK:[/] {apk_path}", border_style="magenta"))

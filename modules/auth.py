@@ -1,5 +1,5 @@
 """
-Aadi — Authentication Module (3-Attempt Cinematic Hacker Voice Edition)
+Aadi — Authentication Module (3-Attempt Cinematic Hacker Voice Edition - Optimized & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
@@ -8,30 +8,30 @@ import time
 import os
 import json
 import pyttsx3
+from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
 
 console = Console()
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), "..", "auth_config.json")
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "auth_config.json")
 
 
-def speak_voice(text: str, rate_offset: int = -50):
+def speak_voice(text: str, rate_offset: int = -50) -> None:
     """
     Optimized Text-to-Speech engine configured to sound heavy, slow,
     and cinematic like a hacker terminal, with proper pronunciation pacing.
     """
     try:
         engine = pyttsx3.init()
+        if not engine:
+            return
 
-        # आवाज की स्पीड को धीमा करें ताकि वह साफ और भारी (Cinematic) सुनाई दे
         current_rate = engine.getProperty('rate')
         engine.setProperty('rate', 130 if current_rate > 150 else current_rate + rate_offset)
 
-        # वॉल्यूम को पूरा तेज रखें
         engine.setProperty('volume', 1.0)
 
-        # एक बेहतरीन अंग्रेजी पुरुष/हैकर्स जैसी आवाज (Voice ID) खोजने की कोशिश
         voices = engine.getProperty('voices')
         for voice in voices:
             voice_desc = voice.name.lower()
@@ -42,43 +42,49 @@ def speak_voice(text: str, rate_offset: int = -50):
         engine.say(text)
         engine.runAndWait()
 
-        # क्रैश होने से बचाने के लिए इंजन को सुरक्षित रूप से बंद करें
         try:
             engine.stop()
-        except:
+        except Exception:
             pass
 
     except Exception:
-        # अगर सिस्टम में ऑडियो ड्राइवर या स्पीच उपलब्ध न हो, तो चुपचाप आगे बढ़ जाएं
         pass
 
 
 def get_or_set_password() -> str:
-    """Check if password is saved; if not, prompt user to set a new one."""
+    """Check if password is saved securely; if not, prompt user to set a new one."""
     if os.path.exists(CONFIG_FILE):
         try:
-            with open(CONFIG_FILE, "r") as f:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return data.get("password", "Aadi@97621")
-        except:
-            pass
+                saved_pass = data.get("password")
+                if saved_pass:
+                    return saved_pass
+        except json.JSONDecodeError:
+            console.print("[yellow]⚠ Auth config file corrupted. Re-setting master password.[/]")
+        except Exception as e:
+            console.print(f"[yellow]⚠ Error reading auth config: {e}[/]")
 
-    # अगर पहली बार टूल चल रहा है और पासवर्ड सेट नहीं है
+    # अगर पहली बार टूल चल रहा है या फाइल करप्ट है
     console.print(
         Panel("[bold yellow]First Time Setup:[/] Please set a security passkey for AADI.", border_style="yellow"))
-    new_pass = Prompt.ask("[cyan]Set Master Password[/]", password=True)
-    confirm_pass = Prompt.ask("[cyan]Confirm Master Password[/]", password=True)
 
-    if new_pass != confirm_pass:
-        console.print("[red]Passwords do not match! Exiting.[/]")
-        sys.exit(1)
+    while True:
+        new_pass = Prompt.ask("[cyan]Set Master Password[/]", password=True)
+        confirm_pass = Prompt.ask("[cyan]Confirm Master Password[/]", password=True)
+
+        if new_pass == confirm_pass and len(new_pass) > 0:
+            break
+        console.print("[red]Passwords do not match or empty! Try again.[/]")
 
     try:
-        with open(CONFIG_FILE, "w") as f:
-            json.dump({"password": new_pass}, f)
+        os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump({"password": new_pass}, f, indent=2)
         console.print("[green]✓ Password saved successfully![/]\n")
     except Exception as e:
         console.print(f"[red]Could not save password: {e}[/]")
+        sys.exit(1)
 
     return new_pass
 
@@ -104,14 +110,14 @@ def verify_or_setup_auth() -> bool:
 
         if entered_password == MASTER_PASSWORD:
             # सही पासवर्ड डालने पर
-            speak_voice("Access Granted. Welcome back, Sir.", rate_offset=-50)
+            speak_voice("Access Granted. Welcome back, Sir Aadi.", rate_offset=-50)
 
             console.print("\n[bold green]⚡ ACCESS GRANTED[/]", justify="center")
             time.sleep(0.4)
 
-            console.print("[bold cyan]╔════════════════════════════════════╗[/]", justify="center")
-            console.print("[bold magenta]║       WELCOME BACK, SIR... 👻      ║[/]", justify="center")
-            console.print("[bold cyan]╚════════════════════════════════════╝[/]", justify="center")
+            console.print("[bold cyan]   ╔════════════════════════════════════╗[/]", justify="center")
+            console.print("[bold magenta]║    WELCOME BACK, SIR... Aadi 👻    ║[/]", justify="center")
+            console.print("[bold cyan]   ╚════════════════════════════════════╝[/]", justify="center")
             time.sleep(0.8)
             return True
         else:
@@ -133,6 +139,6 @@ def verify_or_setup_auth() -> bool:
                     time.sleep(2.0)
 
                 console.print("[bold red][-] Tool session destroyed. Goodbye.[/]")
-                sys.exit(1)  # तीनों प्रयास खत्म होने पर टूल हमेशा के लिए बंद
+                sys.exit(1)
 
     return False

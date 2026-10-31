@@ -1,19 +1,20 @@
 """
-Aadi — Keystore & Sensitive Data Extractor (Enhanced & Robust)
+Aadi — Keystore & Sensitive Data Extractor (Optimized & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import subprocess
 import os
 import time
+from typing import List, Tuple, Optional
 from rich.console import Console
 from rich.panel import Panel
 
 console = Console()
 
 
-def _run_adb(args: list, device_id: str = None, capture: bool = True):
-    """Helper function to execute ADB commands safely."""
+def _run_adb(args: List[str], device_id: Optional[str] = None, capture: bool = True) -> Tuple[str, str, int]:
+    """Helper function to execute ADB commands safely with timeout and error handling."""
     cmd = ["adb"]
     if device_id:
         cmd += ["-s", device_id]
@@ -21,14 +22,20 @@ def _run_adb(args: list, device_id: str = None, capture: bool = True):
     try:
         res = subprocess.run(cmd, capture_output=capture, text=True, timeout=30)
         return res.stdout.strip(), res.stderr.strip(), res.returncode
+    except subprocess.TimeoutExpired:
+        return "", "Process timed out", -2
     except Exception as e:
         return "", str(e), -1
 
 
-def dump_app_data(device_id: str, package_name: str, output_dir: str = "./dumped_data"):
+def dump_app_data(device_id: Optional[str], package_name: str, output_dir: str = "./dumped_data") -> bool:
     """Extract private app data, databases, and shared prefs from rooted device with fallback verification."""
-    if not device_id or not package_name:
-        console.print("[bold red]✗ Device ID or Package Name is missing![/]")
+    if not device_id:
+        console.print("[bold red]✗ No device selected or Device ID is missing![/]")
+        return False
+
+    if not package_name or not package_name.strip():
+        console.print("[bold red]✗ Package Name is missing or invalid![/]")
         return False
 
     console.print(Panel(

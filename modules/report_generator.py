@@ -1,5 +1,5 @@
 """
-Aadi — Report Generator Module
+Aadi — Report Generator Module (Enhanced, Fully Fixed & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
@@ -7,6 +7,7 @@ import json
 import os
 import time
 from datetime import datetime
+from typing import Dict, Any, List, Optional
 from rich.console import Console
 from rich.table import Table
 from rich import box
@@ -16,10 +17,10 @@ console = Console()
 SEV_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
 SEV_BADGE = {
     "CRITICAL": "#ff2d55",
-    "HIGH":     "#ff6b35",
-    "MEDIUM":   "#f7b731",
-    "LOW":      "#2ecc71",
-    "INFO":     "#74b9ff",
+    "HIGH": "#ff6b35",
+    "MEDIUM": "#f7b731",
+    "LOW": "#2ecc71",
+    "INFO": "#74b9ff",
 }
 
 HTML_TEMPLATE = """<!DOCTYPE html>
@@ -46,6 +47,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     --info: #74b9ff;
   }}
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+
   body {{
     background: var(--bg);
     color: var(--text);
@@ -171,7 +173,7 @@ def _badge(severity: str) -> str:
     return f'<span class="badge" style="background:{color}22;color:{color};border:1px solid {color}55">{severity.upper()}</span>'
 
 
-def _remediations() -> dict:
+def _remediations() -> Dict[str, str]:
     return {
         "Debuggable Application": "Set android:debuggable=false in AndroidManifest.xml and ensure ProGuard/R8 is enabled for release builds.",
         "Backup Enabled": "Set android:allowBackup=false in AndroidManifest.xml to prevent data extraction.",
@@ -183,11 +185,11 @@ def _remediations() -> dict:
     }
 
 
-def generate_html_report(data: dict, output: str = "aadi_report.html") -> str:
-    """Generate a styled HTML report."""
+def generate_html_report(data: Dict[str, Any], output: str = "aadi_report.html") -> str:
+    """Generate a styled HTML report with robust error handling and type hints."""
     findings = data.get("findings", [])
-    target   = data.get("target", "Unknown Target")
-    ts       = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    target = data.get("target", "Unknown Target")
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     report_id = f"AADI-{int(time.time())}"
     rems = _remediations()
 
@@ -221,7 +223,7 @@ def generate_html_report(data: dict, output: str = "aadi_report.html") -> str:
     if perms:
         perms_html = '<section><div class="section-title">🔐 Dangerous Permissions</div><table><thead><tr><th>Permission</th><th>Severity</th></tr></thead><tbody>'
         for p in perms:
-            perms_html += f'<tr><td>{p["permission"]}</td><td>{_badge(p["severity"])}</td></tr>'
+            perms_html += f'<tr><td>{p.get("permission", "Unknown")}</td><td>{_badge(p.get("severity", "INFO"))}</td></tr>'
         perms_html += "</tbody></table></section>"
 
     urls = data.get("urls", [])
@@ -237,7 +239,7 @@ def generate_html_report(data: dict, output: str = "aadi_report.html") -> str:
     if secrets:
         secrets_html = f'<section><div class="section-title">🔑 Hardcoded Secrets ({len(secrets)})</div><table><thead><tr><th>File</th><th>Type</th><th>Snippet</th></tr></thead><tbody>'
         for s in secrets[:20]:
-            secrets_html += f"<tr><td>{s['file']}</td><td>{s['type']}</td><td>{s['snippet']}</td></tr>"
+            secrets_html += f"<tr><td>{s.get('file', '')}</td><td>{s.get('type', '')}</td><td>{s.get('snippet', '')}</td></tr>"
         secrets_html += "</tbody></table></section>"
 
     sections = findings_html + perms_html + secrets_html + urls_html
@@ -254,14 +256,18 @@ def generate_html_report(data: dict, output: str = "aadi_report.html") -> str:
         sections=sections,
     )
 
-    with open(output, "w", encoding="utf-8") as f:
-        f.write(html)
-    console.print(f"[bold green]✓ HTML report saved:[/] {output}")
+    try:
+        with open(output, "w", encoding="utf-8") as f:
+            f.write(html)
+        console.print(f"[bold green]✓ HTML report saved successfully:[/] {output}")
+    except Exception as e:
+        console.print(f"[bold red]✗ Failed to write HTML report:[/] {e}")
+
     return output
 
 
-def generate_json_report(data: dict, output: str = "aadi_report.json") -> str:
-    """Generate a structured JSON report."""
+def generate_json_report(data: Dict[str, Any], output: str = "aadi_report.json") -> str:
+    """Generate a structured JSON report securely."""
     report = {
         "tool": "Aadi",
         "author": "Aaditya Kumar Pandey | @aadi_97621",
@@ -269,41 +275,49 @@ def generate_json_report(data: dict, output: str = "aadi_report.json") -> str:
         "target": data.get("target", "Unknown"),
         "summary": {
             "total_findings": len(data.get("findings", [])),
-            "critical": sum(1 for f in data.get("findings", []) if f.get("severity") == "CRITICAL"),
-            "high": sum(1 for f in data.get("findings", []) if f.get("severity") == "HIGH"),
-            "medium": sum(1 for f in data.get("findings", []) if f.get("severity") == "MEDIUM"),
-            "low": sum(1 for f in data.get("findings", []) if f.get("severity") == "LOW"),
+            "critical": sum(1 for f in data.get("findings", []) if f.get("severity", "").upper() == "CRITICAL"),
+            "high": sum(1 for f in data.get("findings", []) if f.get("severity", "").upper() == "HIGH"),
+            "medium": sum(1 for f in data.get("findings", []) if f.get("severity", "").upper() == "MEDIUM"),
+            "low": sum(1 for f in data.get("findings", []) if f.get("severity", "").upper() == "LOW"),
         },
         "data": data,
     }
-    with open(output, "w") as f:
-        json.dump(report, f, indent=2, default=str)
-    console.print(f"[bold green]✓ JSON report saved:[/] {output}")
+    try:
+        with open(output, "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2, default=str)
+        console.print(f"[bold green]✓ JSON report saved successfully:[/] {output}")
+    except Exception as e:
+        console.print(f"[bold red]✗ Failed to write JSON report:[/] {e}")
+
     return output
 
 
-def print_summary_table(data: dict):
+def print_summary_table(data: Dict[str, Any]) -> None:
     """Print a CLI summary table of findings."""
     findings = data.get("findings", [])
     SEV_COLOR = {"CRITICAL": "bold red", "HIGH": "red", "MEDIUM": "yellow", "LOW": "green", "INFO": "cyan"}
 
     t = Table(title="[bold magenta]📋 Aadi — Findings Summary[/]",
               box=box.DOUBLE_EDGE, border_style="magenta", header_style="bold cyan")
-    t.add_column("#",        style="dim",    width=4)
-    t.add_column("Finding",  style="white",  min_width=30)
-    t.add_column("Severity", style="red",    width=12)
-    t.add_column("CVE",      style="cyan",   width=18)
-    t.add_column("Detail",   style="dim",    min_width=40)
+    t.add_column("#", style="dim", width=4)
+    t.add_column("Finding", style="white", min_width=30)
+    t.add_column("Severity", style="red", width=12)
+    t.add_column("CVE", style="cyan", width=18)
+    t.add_column("Detail", style="dim", min_width=40)
 
-    sorted_findings = sorted(findings, key=lambda x: SEV_ORDER.get(x.get("severity", "INFO").upper(), 99))
-    for i, f in enumerate(sorted_findings, 1):
-        sev = f.get("severity", "INFO")
-        clr = SEV_COLOR.get(sev.upper(), "white")
-        t.add_row(
-            str(i),
-            f.get("name", "Unknown"),
-            f"[{clr}]{sev}[/]",
-            f.get("cve") or "[dim]N/A[/]",
-            f.get("detail", "")[:60],
-        )
+    if not findings:
+        t.add_row("-", "No findings available", "[green]INFO[/]", "[dim]N/A[/]", "Target appears clean or unanalyzed.")
+    else:
+        sorted_findings = sorted(findings, key=lambda x: SEV_ORDER.get(x.get("severity", "INFO").upper(), 99))
+        for i, f in enumerate(sorted_findings, 1):
+            sev = f.get("severity", "INFO")
+            clr = SEV_COLOR.get(sev.upper(), "white")
+            t.add_row(
+                str(i),
+                f.get("name", "Unknown"),
+                f"[{clr}]{sev}[/]",
+                f.get("cve") or "[dim]N/A[/]",
+                f.get("detail", "")[:60],
+            )
+
     console.print(t)

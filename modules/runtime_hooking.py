@@ -1,20 +1,23 @@
 """
-Aadi — Automated Frida Hooking Engine
+Aadi — Automated Frida Hooking Engine (Optimized, Cross-Platform & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import subprocess
 import os
 import time
+import tempfile
+from typing import Dict, Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich.prompt import Prompt
 from rich import box
 
 console = Console()
 
 # बिल्ट-इन बाईपास स्क्रिप्ट्स (Built-in JS payloads for runtime hooks)
-FRIDA_SCRIPTS = {
+FRIDA_SCRIPTS: Dict[str, str] = {
     "ssl_pinning": """
 Java.perform(function() {
     console.log("[*] Script loaded: Universal SSL Pinning Bypass");
@@ -64,18 +67,26 @@ Java.perform(function() {
 """
 }
 
+
 def _check_frida_cli() -> bool:
-    """Check if frida-tools is installed."""
+    """Check if frida-tools is installed in the system PATH."""
     try:
-        subprocess.run(["frida", "--version"], capture_output=True, timeout=3)
-        return True
+        res = subprocess.run(["frida", "--version"], capture_output=True, text=True, timeout=3)
+        return res.returncode == 0
     except FileNotFoundError:
         return False
+    except Exception:
+        return False
 
-def run_frida_hook(device_id: str, package: str, hook_type: str = "ssl_pinning"):
-    """Automatically spawn/attach app and run Frida hooking script."""
+
+def run_frida_hook(device_id: Optional[str], package: str, hook_type: str = "ssl_pinning") -> bool:
+    """Automatically spawn/attach app and run Frida hooking script using cross-platform temp file."""
     if not _check_frida_cli():
         console.print("[bold red]✗ Frida CLI tools not found![/] Run: [cyan]pip install frida-tools[/]")
+        return False
+
+    if not package or not package.strip():
+        console.print("[bold red]✗ Target package name cannot be empty.[/]")
         return False
 
     script_code = FRIDA_SCRIPTS.get(hook_type)
@@ -83,44 +94,60 @@ def run_frida_hook(device_id: str, package: str, hook_type: str = "ssl_pinning")
         console.print(f"[bold red]✗ Unknown hook type:[/] {hook_type}")
         return False
 
-    # स्क्रिप्ट को अस्थायी फाइल के रूप में सेव करना
-    script_path = f"/tmp/aadi_hook_{hook_type}.js"
-    with open(script_path, "w", encoding="utf-8") as f:
-        f.write(script_code)
-
-    console.print(Panel(
-        f"[bold cyan]Launching Automated Frida Hook[/]\n"
-        f"  Target Device: {device_id}\n"
-        f"  Target Package: {package}\n"
-        f"  Hook Type: {hook_type}\n"
-        f"  Temp Script: {script_path}",
-        border_style="magenta"
-    ))
-
-    # कमांड तैयार करना: frida -U -f <package> -l <script> --no-pause
-    cmd = ["frida", "-U", "-f", package, "-l", script_path, "--no-pause"]
-    if device_id and ":" in device_id: # अगर वायरलेस ADB है
-        cmd = ["frida", "-H", device_id, "-f", package, "-l", script_path, "--no-pause"]
-
-    console.print("[yellow][*] Spawning app and injecting script... Press Ctrl+C to stop.[/]")
+    script_path: Optional[str] = None
     try:
-        # इसे इंटरैक्टिव रूप से चलाना ताकि यूजर लाइव आउटपुट देख सके
+        # Cross-platform secure temporary file creation
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False, encoding="utf-8") as tmp_file:
+            tmp_file.write(script_code)
+            script_path = tmp_file.name
+
+        console.print(Panel(
+            f"[bold cyan]Launching Automated Frida Hook[/]\n"
+            f"  Target Device: {device_id or 'Default / Connected'}\n"
+            f"  Target Package: {package}\n"
+            f"  Hook Type: {hook_type}\n"
+            f"  Temp Script: {script_path}",
+            border_style="magenta"
+        ))
+
+        # कमांड तैयार करना: frida -U -f <package> -l <script> --no-pause
+        if device_id and ":" in device_id:  # अगर वायरलेस ADB है (IP:Port)
+            cmd = ["frida", "-H", device_id, "-f", package, "-l", script_path, "--no-pause"]
+        elif device_id:
+            cmd = ["frida", "-S", device_id, "-f", package, "-l", script_path, "--no-pause"]
+        else:
+            cmd = ["frida", "-U", "-f", package, "-l", script_path, "--no-pause"]
+
+        console.print("[yellow][*] Spawning app and injecting script... Press Ctrl+C to stop.[/]")
+
         subprocess.run(cmd)
+        console.print("\n[green]✓ Frida hook session completed.[/]")
+        return True
+
     except KeyboardInterrupt:
-        console.print("\n[green]✓ Frida hook session terminated.[/]")
+        console.print("\n[green]✓ Frida hook session terminated by user.[/]")
+        return True
+    except subprocess.CalledProcessError as e:
+        console.print(f"[bold red]✗ Frida process exited with error code {e.returncode}.[/]")
+        return False
     except Exception as e:
-        console.print(f"[bold red]✗ Frida execution error:[/] {e}")
+        console.print(f"[bold red]✗ Frida execution error: {e}[/]")
+        return False
+    finally:
+        # सुरक्षित सफाई (Cleanup)
+        if script_path and os.path.exists(script_path):
+            try:
+                os.remove(script_path)
+            except Exception:
+                pass
 
-    # सफाई
-    if os.path.exists(script_path):
-        os.remove(script_path)
-    return True
 
-def frida_menu(device_id: str):
+def frida_menu(device_id: Optional[str]) -> None:
     """Interactive menu for automated Frida hooks."""
     while True:
         console.print()
-        t = Table(title="[bold magenta]⚡ Automated Frida Hooking Engine[/]", box=box.DOUBLE_EDGE, border_style="magenta")
+        t = Table(title="[bold magenta]⚡ Automated Frida Hooking Engine[/]", box=box.DOUBLE_EDGE,
+                  border_style="magenta")
         t.add_column("Option", style="cyan", width=6)
         t.add_column("Hook Action", style="white")
         t.add_column("Description", style="dim")
@@ -131,14 +158,14 @@ def frida_menu(device_id: str):
         t.add_row("[0]", "Back", "Return to main menu")
         console.print(t)
 
-        from rich.prompt import Prompt
         choice = Prompt.ask("[cyan]Select Frida Hook ▶[/]", choices=["0", "1", "2", "3"], default="0")
         if choice == "0":
             break
 
         pkg = Prompt.ask("[cyan]Enter target package name (e.g. com.example.app)[/]")
-        if not pkg:
+        if not pkg or not pkg.strip():
+            console.print("[red]✗ Package name cannot be empty.[/]")
             continue
 
         hook_map = {"1": "ssl_pinning", "2": "root_detection", "3": "class_dump"}
-        run_frida_hook(device_id, pkg, hook_map.get(choice))
+        run_frida_hook(device_id, pkg.strip(), hook_map.get(choice))

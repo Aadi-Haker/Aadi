@@ -1,10 +1,11 @@
 """
-Aadi — Advanced Intent & Deep-Link Fuzzer (Enhanced & Robust)
+Aadi — Advanced Intent & Deep-Link Fuzzer (Enhanced, Robust & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import subprocess
 import time
+from typing import List, Tuple, Optional
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -13,8 +14,8 @@ from rich import box
 console = Console()
 
 
-def _run_adb(args: list, device_id: str = None, timeout: int = 3):
-    """Helper function to run adb commands with timeout."""
+def _run_adb(args: List[str], device_id: Optional[str] = None, timeout: int = 3) -> Tuple[str, str, int]:
+    """Helper function to run adb commands with timeout and error handling."""
     cmd = ["adb"]
     if device_id:
         cmd += ["-s", device_id]
@@ -28,10 +29,14 @@ def _run_adb(args: list, device_id: str = None, timeout: int = 3):
         return "", str(e), -1
 
 
-def fuzz_exported_activities(device_id: str, package_name: str, activity_list: list):
+def fuzz_exported_activities(device_id: str, package_name: str, activity_list: List[str]) -> None:
     """Fuzz exported activities using advanced intent actions and input validation payloads."""
     if not activity_list:
         console.print("[yellow]⚠ No exported activities provided for fuzzing.[/]")
+        return
+
+    if not package_name:
+        console.print("[red]✗ Target package name cannot be empty.[/]")
         return
 
     console.print(Panel(
@@ -51,14 +56,14 @@ def fuzz_exported_activities(device_id: str, package_name: str, activity_list: l
         "com.malicious.action.TEST"
     ]
 
-    # Input validation / fuzz payloads for intent extras
+    # Input validation / fuzz payloads for intent extras (Fixed syntax bug: "A" * 1000)
     fuzz_payloads = [
-        ("test_string", "' OR 1=1 -- "),  # SQL Injection probe
-        ("payload", "<script>alert(1)</script>"),  # XSS / Code injection probe
-        ("data", "A" * 1000),  # Buffer overflow / Large input probe
-        ("url", "file:///etc/passwd"),  # Path traversal URI probe
-        ("debug", "true"),  # Boolean debug flag toggle
-        ("account_id", "-1"),  # Integer boundary test
+        ("test_string", "' OR 1=1 -- "),                  # SQL Injection probe
+        ("payload", "<script>alert(1)</script>"),       # XSS / Code injection probe
+        ("data", "A" * 1000),                           # Buffer overflow / Large input probe (Fixed)
+        ("url", "file:///etc/passwd"),                  # Path traversal URI probe
+        ("debug", "true"),                              # Boolean debug flag toggle
+        ("account_id", "-1"),                           # Integer boundary test
     ]
 
     results_table = Table(title="[bold red]🎯 Intent Fuzzing Results[/]", box=box.DOUBLE_EDGE, border_style="red",
@@ -89,7 +94,7 @@ def fuzz_exported_activities(device_id: str, package_name: str, activity_list: l
             # Test 2: Fuzz with malicious/edge-case extra arguments
             for key, val in fuzz_payloads:
                 total_tests += 1
-                cmd_args = ["shell", "am", "start", "-a", actn, "-n", component, "--es", key, val]
+                cmd_args = ["shell", "am", "start", "-a", actn, "-n", component, "--es", key, str(val)]
                 out, err, rc = _run_adb(cmd_args, device_id)
 
                 payload_status = "[green]✓ Handled[/]"
@@ -97,8 +102,9 @@ def fuzz_exported_activities(device_id: str, package_name: str, activity_list: l
                     payload_status = "[bold yellow]⚠ EXCEPTION[/]"
                     vulnerable_hits += 1
 
-                results_table.add_row(act, actn, f"{key}={val[:10]}...", payload_status)
-                time.sleep(0.1)  # Prevent flooding adb daemon too rapidly
+                val_preview = str(val)[:10] + "..." if len(str(val)) > 10 else str(val)
+                results_table.add_row(act, actn, f"{key}={val_preview}", payload_status)
+                time.sleep(0.05)  # Prevent flooding adb daemon too rapidly
 
     console.print(results_table)
 

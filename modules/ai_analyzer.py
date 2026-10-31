@@ -1,10 +1,11 @@
 """
-Aadi — AI-Powered Vulnerability Triage & LLM Exploit Suggester (Optimized)
+Aadi — AI-Powered Vulnerability Triage & LLM Exploit Suggester (Optimized & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import requests
 import json
+from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
 
@@ -16,8 +17,18 @@ def analyze_vulnerabilities_with_ai(
         ollama_url: str = "http://localhost:11434/api/generate",
         model_name: str = "llama3",
         timeout_sec: int = 120
-):
-    """Send manifest or static scan data to local LLM (Ollama) for AI security triage with improved error handling & timeouts."""
+) -> Optional[str]:
+    """Send manifest or static scan data to local LLM (Ollama) for AI security triage with robust error handling."""
+    if not manifest_data or not manifest_data.strip():
+        console.print("[bold red]✗ Error: Manifest data is empty or invalid.[/]")
+        return None
+
+    # Limit payload length to prevent model context overload if extremely large
+    max_chars = 12000
+    if len(manifest_data) > max_chars:
+        console.print("[yellow]⚠ Manifest data is very large; trimming to fit model context window.[/]")
+        manifest_data = manifest_data[:max_chars] + "\n[... truncated ...]"
+
     console.print(
         Panel(f"[cyan]Querying Local AI Model ({model_name}) for Vulnerability Triage...[/]", border_style="magenta"))
 
@@ -35,18 +46,19 @@ def analyze_vulnerabilities_with_ai(
             "prompt": prompt,
             "stream": False,
             "options": {
-                "temperature": 0.2  # Lower temperature for more deterministic security analysis
+                "temperature": 0.2  # Lower temperature for deterministic security analysis
             }
         }
 
         res = requests.post(ollama_url, json=payload, timeout=timeout_sec)
 
         if res.status_code == 200:
-            analysis = res.json().get("response", "No response from model.")
+            data = res.json()
+            analysis = data.get("response", "No response text found from model.")
             console.print(Panel(analysis, title="[bold green]AI Security Analysis Report[/]", border_style="green"))
             return analysis
         else:
-            console.print(f"[bold red]✗ AI Server error: Status code {res.status_code}[/]")
+            console.print(f"[bold red]✗ AI Server error: Status code {res.status_code} - {res.text}[/]")
             return None
 
     except requests.exceptions.Timeout:
@@ -55,6 +67,8 @@ def analyze_vulnerabilities_with_ai(
     except requests.exceptions.ConnectionError:
         console.print(
             f"[bold red]✗ Failed to connect to Ollama at {ollama_url}. Make sure Ollama is running (`ollama serve`).[/]")
+    except requests.exceptions.RequestException as re_err:
+        console.print(f"[bold red]✗ HTTP Request failed: {re_err}[/]")
     except Exception as e:
         console.print(f"[bold red]✗ Unexpected error during AI triage: {e}[/]")
 

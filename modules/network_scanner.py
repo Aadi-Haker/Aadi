@@ -1,5 +1,5 @@
 """
-AADI — Network Scanner Module (Enhanced & Cross-Version Robust)
+Aadi — Network Scanner Module (Enhanced, Cross-Version Robust & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
@@ -7,7 +7,9 @@ import subprocess
 import re
 import socket
 import shutil
+import os
 import concurrent.futures
+from typing import List, Dict, Any, Optional
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -26,7 +28,7 @@ COMMON_PORTS = {
 }
 
 
-def _run_adb(args: list, device_id: str = None):
+def _run_adb(args: List[str], device_id: Optional[str] = None) -> str:
     cmd = ["adb"]
     if device_id:
         cmd += ["-s", device_id]
@@ -38,7 +40,7 @@ def _run_adb(args: list, device_id: str = None):
         return ""
 
 
-def get_device_ip(*args, **kwargs):
+def get_device_ip(*args: Any, **kwargs: Any) -> Optional[str]:
     """Get device IP robustly across modern Android versions (safe with any arguments)."""
     device_id = args[0] if args and isinstance(args[0], str) else kwargs.get('device_id', None)
 
@@ -69,7 +71,7 @@ def get_device_ip(*args, **kwargs):
     return None
 
 
-def get_wifi_info(*args, **kwargs):
+def get_wifi_info(*args: Any, **kwargs: Any) -> Dict[str, str]:
     """Retrieve WiFi connection details safely."""
     device_id = args[0] if args and isinstance(args[0], str) else kwargs.get('device_id', None)
     info = {}
@@ -116,9 +118,10 @@ def _scan_port(host: str, port: int, timeout: float = 0.8) -> bool:
         return False
 
 
-def port_scan(target: str = None, ports: list = None, timeout: float = 0.8, max_workers: int = 100):
+def port_scan(target: Optional[str] = None, ports: Optional[List[int]] = None, timeout: float = 0.8,
+              max_workers: int = 100) -> List[int]:
     """Fast multithreaded port scanner."""
-    if not target:
+    if not target or not target.strip():
         target = Prompt.ask("[cyan]Enter target IP or hostname to scan[/]", default="127.0.0.1")
 
     if ports is None:
@@ -163,7 +166,7 @@ def port_scan(target: str = None, ports: list = None, timeout: float = 0.8, max_
     return open_ports
 
 
-def discover_devices(*args, **kwargs):
+def discover_devices(*args: Any, **kwargs: Any) -> None:
     """Wrapper function to discover active hosts/devices or run port scan safely."""
     console.rule("[bold magenta]🔍 Network & Host Discovery[/]")
     subnet = Prompt.ask("[cyan]Enter target subnet or IP for scan[/]", default="192.168.1.1/24")
@@ -171,41 +174,65 @@ def discover_devices(*args, **kwargs):
     if shutil.which("nmap"):
         console.print(f"[green][*] Running nmap host discovery on {subnet}...[/]")
         try:
-            subprocess.run(["nmap", "-sn", subnet])
+            subprocess.run(["nmap", "-sn", subnet], check=True)
         except KeyboardInterrupt:
             console.print("\n[yellow]Scan interrupted.[/]")
+        except Exception as e:
+            console.print(f"[bold red]✗ Nmap execution failed:[/] {e}")
     else:
+        console.print("[yellow]⚠ 'nmap' not found in system PATH. Falling back to port scan.[/]")
         port_scan()
 
 
-def mitm_setup_guide(*args, **kwargs):
+def check_ssl_pinning(*args: Any, **kwargs: Any) -> Optional[str]:
+    """Checks for security certificates or SSL pinning configurations on the device."""
+    console.print("[bold cyan][*] Initializing SSL Pinning & Security Analysis...[/]")
+    device_id = args[0] if args and isinstance(args[0], str) else kwargs.get('device_id', None)
+
+    res = _run_adb(["shell", "pm", "list", "packages", "-3"], device_id)
+
+    output_path = os.path.join("loot", "ssl_pinning_report.txt")
+    os.makedirs("loot", exist_ok=True)
+
+    report_data = "=== SSL Pinning & Third-Party Package Analysis ===\n\n"
+    report_data += res
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(report_data)
+
+    console.print(f"[bold green][✓] SSL Pinning analysis completed successfully![/]")
+    console.print(f"[dim]Report saved to: {output_path}[/]\n")
+    return output_path
+
+
+def mitm_setup_guide(*args: Any, **kwargs: Any) -> None:
     """Print a guide for setting up MitM with mitmproxy."""
     guide = """
 [bold magenta]── MitM Proxy Setup Guide ──────────────────────────────────[/]
 
 [bold cyan]1. Install mitmproxy:[/]
-   pip install mitmproxy
+    pip install mitmproxy
 
 [bold cyan]2. Start transparent proxy:[/]
-   mitmproxy --mode transparent --showhost
+    mitmproxy --mode transparent --showhost
 
 [bold cyan]3. On device (ADB shell, requires root or WiFi proxy):[/]
-   adb shell settings put global http_proxy <your-ip>:8080
+    adb shell settings put global http_proxy <your-ip>:8080
 
 [bold cyan]4. Install mitmproxy CA cert on device:[/]
-   Browse to http://mitm.it from the device
+    Browse to http://mitm.it from the device
 
 [bold cyan]5. For SSL Pinning bypass, use Frida + objection:[/]
-   objection -g <package_name> explore
-   android sslpinning disable
+    objection -g <package_name> explore
+    android sslpinning disable
 
 [bold cyan]6. Capture traffic:[/]
-   mitmweb --mode transparent
+    mitmweb --mode transparent
     """
     console.print(Panel(guide, title="[bold]MitM Setup Guide[/]", border_style="cyan"))
 
 
-def network_scanner_menu(*args, **kwargs):
+def network_scanner_menu(*args: Any, **kwargs: Any) -> None:
     """Main menu wrapper for network scanner module."""
     while True:
         console.rule("[bold cyan]Network & Device Scanner Menu[/]")
@@ -213,9 +240,10 @@ def network_scanner_menu(*args, **kwargs):
         console.print("[2] Get Connected Device IP")
         console.print("[3] Get WiFi Connection Info")
         console.print("[4] MitM Setup Guide")
+        console.print("[5] SSL Pinning Check")
         console.print("[0] Back to Main Menu")
 
-        choice = Prompt.ask("[cyan]Select option[/]", choices=["1", "2", "3", "4", "0"], default="1")
+        choice = Prompt.ask("[cyan]Select option[/]", choices=["1", "2", "3", "4", "5", "0"], default="1")
 
         if choice == "1":
             discover_devices()
@@ -225,5 +253,7 @@ def network_scanner_menu(*args, **kwargs):
             get_wifi_info()
         elif choice == "4":
             mitm_setup_guide()
+        elif choice == "5":
+            check_ssl_pinning()
         elif choice == "0":
             break

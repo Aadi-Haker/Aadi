@@ -1,10 +1,11 @@
 """
-Aadi — AI Vulnerability Triage & Remediation Assistant Module (Optimized)
+Aadi — AI Vulnerability Triage & Remediation Assistant Module (Optimized & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import json
 import difflib
+from typing import List, Dict, Any, Optional
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -69,7 +70,7 @@ REMEDIATIONS_DB = {
 }
 
 
-def triage_findings(findings: list) -> dict:
+def triage_findings(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Analyze findings and perform smart re-scoring and triage."""
     console.print(Panel("[bold cyan]🤖 AI Triage Engine analyzing findings...[/]", border_style="cyan"))
 
@@ -80,7 +81,10 @@ def triage_findings(findings: list) -> dict:
         "attack_chains": []
     }
 
-    finding_names = [f.get("name", "") for f in findings]
+    if not findings or not isinstance(findings, list):
+        return triaged_results
+
+    finding_names = [str(f.get("name", "")) for f in findings if isinstance(f, dict)]
 
     # Evaluate Attack Chains
     for rule in ATTACK_CHAIN_RULES:
@@ -89,7 +93,9 @@ def triage_findings(findings: list) -> dict:
 
     # Smart Scoring & Insights
     for f in findings:
-        sev = f.get("severity", "INFO").upper()
+        if not isinstance(f, dict):
+            continue
+        sev = str(f.get("severity", "INFO")).upper()
         if sev == "CRITICAL":
             triaged_results["critical_count"] += 1
         elif sev == "HIGH":
@@ -98,7 +104,7 @@ def triage_findings(findings: list) -> dict:
     return triaged_results
 
 
-def display_triage_report(findings: list):
+def display_triage_report(findings: List[Dict[str, Any]]) -> None:
     """Display AI triage analysis and potential attack chains in a rich UI format."""
     if not findings:
         console.print("[yellow]No findings in session to triage. Run an APK analysis or Vulnerability scan first.[/]")
@@ -136,6 +142,10 @@ def display_triage_report(findings: list):
 
 def generate_custom_remediation(vuln_name: str) -> str:
     """Generate developer-ready code fixes for specific vulnerabilities with smart fuzzy matching."""
+    if not vuln_name or not vuln_name.strip():
+        console.print("[red]✗ Vulnerability name cannot be empty.[/]")
+        return ""
+
     vuln_keys = list(REMEDIATIONS_DB.keys())
 
     # Exact match check
@@ -144,7 +154,7 @@ def generate_custom_remediation(vuln_name: str) -> str:
 
     # If exact match fails, use fuzzy matching to find closest valid vulnerability
     if not fix:
-        matches = difflib.get_close_matches(vuln_name, vuln_keys, n=1, cutoff=0.4)
+        matches = difflib.get_close_matches(vuln_name, vuln_keys, n=1, cutoff=0.3)
         if matches:
             matched_name = matches[0]
             fix = REMEDIATIONS_DB.get(matched_name)
@@ -152,15 +162,18 @@ def generate_custom_remediation(vuln_name: str) -> str:
                 f"[yellow]ℹ Exact match not found for '{vuln_name}'. Showing closest match: '{matched_name}'[/]")
 
     if not fix:
-        fix = "Apply principle of least privilege, input validation, and proper encryption standards."
+        fix = "// General Recommendation:\nApply principle of least privilege, strict input validation, and proper cryptographic standards."
         matched_name = vuln_name
 
     console.print(Panel(fix, title=f"[bold green]🛡 Code Remediation for: {matched_name}[/]", border_style="green"))
     return fix
 
 
-def ai_assistant_menu(session_data: dict):
+def ai_assistant_menu(session_data: Optional[Dict[str, Any]] = None) -> None:
     """Interactive AI Assistant Menu."""
+    if session_data is None:
+        session_data = {"findings": []}
+
     options = [
         ("1", "🧠", "Run AI Triage & Exploit Chaining", "Analyze session findings for multi-vector attacks"),
         ("2", "🛡", "Generate Custom Code Remediation", "Get developer-ready secure code snippets"),

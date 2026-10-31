@@ -1,54 +1,42 @@
 """
-Aadi — Live Screen Streaming & Remote Control Helper (HD Version)
+Aadi — Live Screen Streaming & Remote Control Helper (HD Version, Optimized & Secured)
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
 import subprocess
+import shutil
+from typing import Optional, List
 from rich.console import Console
 from rich.panel import Panel
 
 console = Console()
 
 
-# def start_screen_stream(device_id: str):
-#     """Launch scrcpy with high-definition settings for crystal-clear live mirroring & control."""
-#     console.print(Panel("[cyan]Launching High-Definition Live Screen Mirroring...[/]", border_style="magenta"))
-#     try:
-#         # High-quality scrcpy arguments:
-#         # --max-size=1920 -> Full HD Resolution
-#         # --bit-rate=8M   -> High Bitrate for crisp graphics & zero pixelation
-#         # --max-fps=60    -> Smooth 60 FPS motion
-#
-#         if device_id:
-#             cmd = ["scrcpy", "-s", device_id, "--max-size=1920", "--bit-rate=8M", "--max-fps=60"]
-#         else:
-#             cmd = ["scrcpy", "--max-size=1920", "--bit-rate=8M", "--max-fps=60"]
-#
-#         console.print("[yellow][*] Starting HD stream window. Close the video window to return to AADI.[/]")
-#         subprocess.run(cmd)
-#
-#     except FileNotFoundError:
-#         console.print("[bold red]✗ 'scrcpy' is not installed or not found in system PATH.[/]")
-#         console.print(
-#             "[yellow][*] Tip: Install it using `sudo apt install scrcpy` (Linux) or `winget install scrcpy` (Windows).[/]")
-#     except Exception as e:
-#         console.print(f"[bold red]✗ Error starting screen stream: {e}[/]")
-
-
-def start_screen_stream(device_id: str):
+def start_screen_stream(device_id: Optional[str] = None) -> None:
     """Launch scrcpy with high-definition settings for crystal-clear live mirroring & control."""
     console.print(Panel("[cyan]Launching High-Definition Live Screen Mirroring...[/]", border_style="magenta"))
+
+    # Check if scrcpy is installed before executing
+    if not shutil.which("scrcpy"):
+        console.print("[bold red]✗ 'scrcpy' is not installed or not found in system PATH.[/]")
+        console.print(
+            "[yellow][*] Tip: Install it using `sudo apt install scrcpy` (Linux) or `winget install scrcpy` (Windows).[/]")
+        return
+
     try:
-        # यहाँ '--bit-rate=8M' की जगह '-b 8M' का उपयोग करें
+        # Constructing scrcpy command dynamically
+        cmd: List[str] = ["scrcpy"]
         if device_id:
-            cmd = ["scrcpy", "-s", device_id, "--max-size=1920", "-b", "8M", "--max-fps=60"]
-        else:
-            cmd = ["scrcpy", "--max-size=1920", "-b", "8M", "--max-fps=60"]
+            cmd.extend(["-s", device_id])
+
+        cmd.extend(["--max-size=1920", "-b", "8M", "--max-fps=60"])
 
         console.print("[yellow][*] Starting HD stream window. Close the video window to return to AADI.[/]")
-        subprocess.run(cmd)
+        subprocess.run(cmd, check=True)
 
-    except FileNotFoundError:
-        console.print("[bold red]✗ 'scrcpy' is not installed or not found in system PATH.[/] [[cite: 1]]")
+    except subprocess.CalledProcessError as e:
+        console.print(f"[bold red]✗ scrcpy process exited with error code {e.returncode}.[/]")
+    except KeyboardInterrupt:
+        console.print("\n[yellow][*] Screen streaming session terminated by user.[/]")
     except Exception as e:
         console.print(f"[bold red]✗ Error starting screen stream: {e}[/]")
