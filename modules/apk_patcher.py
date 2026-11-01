@@ -8,6 +8,7 @@ import os
 from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
+from modules import apk_signer  # <--- ऑटो-साइनिंग मॉड्यूल का इम्पोर्ट
 
 console = Console()
 
@@ -29,9 +30,6 @@ def decompile_apk(apk_path: str) -> Optional[str]:
         subprocess.run(cmd, check=True, capture_output=True, text=True)
 
         console.print(f"[bold green]✓ APK decompiled successfully into '{output_dir}'.[/]")
-        console.print(
-            f"[yellow][*] Inspect Smali/Manifest in '{output_dir}' and rebuild using: [bold]apktool b {output_dir}[/][/]"
-        )
         return output_dir
     except FileNotFoundError:
         console.print("[bold red]✗ 'apktool' not found in system PATH. Please install it first.[/]")
@@ -61,8 +59,6 @@ def recompile_apk(output_dir: str, reconstructed_apk_name: str = "patched_output
         build_cmd = ["apktool", "b", output_dir, "-o", reconstructed_apk_name]
         subprocess.run(build_cmd, check=True, capture_output=True, text=True)
         console.print(f"[bold green]✓ APK recompiled successfully: {reconstructed_apk_name}[/]")
-        console.print(
-            "[yellow][!] Note: The recompiled APK must be signed (e.g., using uber-apk-signer or jarsigner) before installation on a physical device.[/]")
         return True
     except FileNotFoundError:
         console.print("[bold red]✗ 'apktool' not found in system PATH.[/]")
@@ -72,4 +68,10 @@ def recompile_apk(output_dir: str, reconstructed_apk_name: str = "patched_output
     except Exception as e:
         console.print(f"[bold red]✗ Recompilation failed: {e}[/]")
 
+    return False
+
+
+def recompile_and_sign(output_dir: str) -> bool:
+    if recompile_apk(output_dir, "patched_output.apk"):
+        return apk_signer.sign_apk("patched_output.apk")
     return False

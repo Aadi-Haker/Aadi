@@ -12,11 +12,14 @@ from rich.prompt import Prompt, IntPrompt
 console = Console()
 
 
-def start_cloud_tunnel() -> None:
+def start_cloud_tunnel(port: Optional[int] = None) -> None:
     """Expose local ports (like RAT listener or web dashboard) to the internet securely with robust error handling."""
     console.rule("[bold magenta]🌐 Cloud Tunnel & Port Forwarding Manager[/]")
 
-    port = IntPrompt.ask("[cyan]Enter local port to forward (e.g., RAT listener port 4444)[/]", default=4444)
+    # यदि बाहर से पोर्ट पास नहीं किया गया है, तो यूजर से पूछें
+    if port is None:
+        port = IntPrompt.ask("[cyan]Enter local port to forward (e.g., RAT listener port 4444)[/]", default=4444)
+
     if not (1 <= port <= 65535):
         console.print("[bold red]✗ Invalid port number. Must be between 1 and 65535.[/]")
         return
@@ -34,8 +37,7 @@ def start_cloud_tunnel() -> None:
                 return
 
             console.print(f"[green]Starting secure Cloudflare tunnel for port {port}...[/]")
-            console.print(
-                "[yellow]Note: Look at the generated *.trycloudflare.com URL in the output below and copy it.[/]")
+            console.print("[yellow]Note: Look at the generated *.trycloudflare.com URL in the output below and copy it.[/]")
             console.print("[dim]Press Ctrl+C to stop the tunnel session.[/]\n")
 
             subprocess.run(["cloudflared", "tunnel", "--url", f"http://localhost:{port}"], check=True)
@@ -55,8 +57,7 @@ def start_cloud_tunnel() -> None:
 
         elif tunnel_type == "localhost.run":
             if not shutil.which("ssh"):
-                console.print(
-                    "[bold red]✗ 'ssh' client not found.[/] OpenSSH client is required for localhost.run tunnels.")
+                console.print("[bold red]✗ 'ssh' client not found.[/] OpenSSH client is required for localhost.run tunnels.")
                 return
 
             console.print(f"[green]Connecting to localhost.run SSH tunnel for port {port}...[/]")

