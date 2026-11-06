@@ -5,7 +5,7 @@
 
 **Author:** Aaditya Kumar Pandey | Instagram: [@aadi_97621](https://www.instagram.com/aadi_97621)
 
-![Version](https://img.shields.io/badge/Version-2.0.0-blueviolet?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-3.0.0-blueviolet?style=for-the-badge)
 ![Python](https://img.shields.io/badge/Python-3.8+-cyan?style=for-the-badge&logo=python)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-magenta?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-Educational-red?style=for-the-badge)

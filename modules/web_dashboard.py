@@ -15,7 +15,6 @@ from rich.console import Console
 
 console = Console()
 
-# ग्लोबल क्लिक और इंटरैक्शन लॉग्स स्टोर करने के लिए
 CLICK_LOGS = []
 
 DASHBOARD_HTML = """<!DOCTYPE html>
